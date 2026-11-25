@@ -1,0 +1,27 @@
+# One-click deploy: https://render.com/deploy?repo=https://github.com/fatahka-123/duka-intelligence
+# Free plan: the web service sleeps after ~15 min idle (first request then takes ~1 min) and
+# the free database expires after 30 days. Switch both plans to paid before real use.
+services:
+  - type: web
+    name: duka-intelligence
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: duka-db
+          property: connectionString
+      - key: DUKA_SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ENVIRONMENT
+        value: production
+      - key: SEED_DEMO          # creates demo@duka.app / demo-password-123 with sample data; set to "false" for real use
+        value: "true"
+databases:
+  - name: duka-db
+    plan: free
+    databaseName: duka
+    user: duka

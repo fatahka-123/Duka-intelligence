@@ -1,0 +1,15 @@
+{
+  "name": "Duka Intelligence",
+  "short_name": "Duka",
+  "start_url": "/#pos",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f8f5",
+  "theme_color": "#10251d",
+  "description": "Point of sale, stock, credit and business insights for African shops",
+  "icons": [{ "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }],
+  "shortcuts": [
+    { "name": "New sale", "url": "/#pos" },
+    { "name": "Ask Duka", "url": "/#assistant" }
+  ]
+}

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..config import DEMO_STATE
 from ..db import AuditLog, Business, User, db_session, utcnow
 from ..schemas import BusinessIn, LoginIn, PasswordChangeIn, RegisterIn, StaffIn, StaffUpdateIn, user_out
 from ..security import (
@@ -52,6 +53,11 @@ def login(data: LoginIn, request: Request, response: Response, db: Session = Dep
         raise HTTPException(429, f"Too many failed sign-in attempts. Try again in {max(1, wait // 60)} minute(s).",
                             headers={"Retry-After": str(wait)})
     user = db.scalar(select(User).where(User.email == email))
+    if not user and email.endswith("demo@duka.app"):
+        if DEMO_STATE["state"] == "seeding":
+            raise HTTPException(503, "The demo shop is still being set up — this takes 1–3 minutes on Render's free plan. Please try again shortly.")
+        if DEMO_STATE["state"] == "failed":
+            raise HTTPException(503, "The demo shop could not be created. Check the Render logs, or create your own account below.")
     if not user:
         dummy_verify()
     if not user or not verify_password(data.password, user.password_hash) or not user.active:

@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from .config import AUTO_CREATE_TABLES, COOKIE_SECURE, ENABLE_SCHEDULER, SEED_DEMO, SEED_DEMO_DAYS, VERSION, assert_safe_for_production
+from .config import DEMO_STATE, AUTO_CREATE_TABLES, COOKIE_SECURE, ENABLE_SCHEDULER, SEED_DEMO, SEED_DEMO_DAYS, VERSION, assert_safe_for_production
 from .db import Base, engine
 from .automation import scheduler_loop
 from .routes import auth, business, inventory, sales, smart
@@ -43,10 +43,17 @@ def seed_demo_if_empty() -> None:
     from .seed import seed
     try:
         with SessionLocal() as db:
-            if db.scalar(select(func.count(User.id))):
+            if db.scalar(select(func.count(User.id)).where(User.email == "demo@duka.app")):
+                DEMO_STATE["state"] = "ready"
                 return
+            if db.scalar(select(func.count(User.id))):
+                DEMO_STATE["state"] = "off"  # real accounts exist: never inject demo data into a live install
+                return
+        DEMO_STATE["state"] = "seeding"
         seed("demo@duka.app", "demo-password-123", SEED_DEMO_DAYS)
+        DEMO_STATE["state"] = "ready"
     except Exception:  # noqa: BLE001 — a demo seed must never stop the app from serving
+        DEMO_STATE["state"] = "failed"
         logging.getLogger("duka").exception("demo seed failed")
 
 
@@ -133,4 +140,4 @@ def health():
     except Exception:
         db_ok = False
     return JSONResponse({"status": "ok" if db_ok else "degraded", "database": db_ok, "service": "duka-intelligence",
-                         "version": VERSION}, status_code=200 if db_ok else 503)
+                         "version": VERSION, "demo": DEMO_STATE["state"]}, status_code=200 if db_ok else 503)

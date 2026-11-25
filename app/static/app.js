@@ -135,6 +135,7 @@ function authView(mode = 'login') {
   <div class="auth-toggle">${reg ? 'Already have an account?' : 'New to Duka?'} <button class="link" type="button" id="switchAuth">${reg ? 'Sign in' : 'Create an account'}</button></div>
   <div id="authError" role="alert" style="color:#c74646;font-size:11px;margin-top:12px"></div></form></section></div>`;
   $('#switchAuth').onclick = () => authView(reg ? 'login' : 'register');
+  demoBanner();
   $('#authForm').onsubmit = async e => {
     e.preventDefault();
     const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
@@ -143,8 +144,22 @@ function authView(mode = 'login') {
       state.me = d.user; state.business = d.business; state.page = d.user.role === 'cashier' ? 'pos' : 'dashboard';
       store.set('duka_session_hint', d);
       await loadApp();
-    } catch (err) { $('#authError').textContent = err.message; btn.disabled = false; }
+    } catch (err) { const box = $('#authError'); box.style.color = '#c74646'; box.dataset.done = '1'; box.textContent = err.message; btn.disabled = false; }
   };
+}
+
+async function demoBanner() {
+  // On demo deployments, tell people when the sample shop is still being prepared (it takes a minute or two on small servers)
+  let h; try { h = await (await fetch('/health')).json(); } catch { return; }
+  const box = $('#authError'); if (!box || !h.demo || h.demo === 'off') return;
+  if (h.demo === 'seeding') {
+    box.style.color = '#7a4c08';
+    box.textContent = '⏳ The demo shop is being prepared (1–3 minutes on the free server). Demo login: demo@duka.app / demo-password-123';
+    setTimeout(() => { if ($('#authForm')) demoBanner(); }, 8000);
+  } else if (h.demo === 'ready' && !box.dataset.done) {
+    box.style.color = '#16734a'; box.dataset.done = '1';
+    box.textContent = '✓ Demo ready — sign in with demo@duka.app / demo-password-123';
+  }
 }
 
 // ------------------------------------------------------------------ shell & navigation

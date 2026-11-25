@@ -55,3 +55,4 @@ MPESA_ENFORCE_IPS = os.getenv("MPESA_ENFORCE_IPS", "false").lower() == "true"
 # Create the demo shop (demo@duka.app) on first start when the database has no users. For demos only.
 SEED_DEMO = os.getenv("SEED_DEMO", "false").lower() == "true"
 SEED_DEMO_DAYS = int(os.getenv("SEED_DEMO_DAYS", "90"))
+DEMO_STATE = {"state": "off"}  # off | seeding | ready | failed — status of the optional demo seed

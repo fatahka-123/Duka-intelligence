@@ -280,3 +280,14 @@ def test_cashier_limits_on_smart_features(client, owner):
         assert cashier.get(path).status_code == 403, path
     assert cashier.post("/api/quick-entry/parse", json={"text": "expense 500 transport"}).json()["intent"] == "error"
     assert cashier.post("/api/shifts/open", json={"opening_float": 500}).status_code == 200
+
+
+def test_demo_login_while_seeding_gives_clear_message(client):
+    from app.config import DEMO_STATE
+    DEMO_STATE["state"] = "seeding"
+    try:
+        r = new_client().post("/api/auth/login", json={"email": "demo@duka.app", "password": "demo-password-123"})
+        assert r.status_code == 503 and "being set up" in r.json()["detail"]
+        assert client.get("/health").json()["demo"] == "seeding"
+    finally:
+        DEMO_STATE["state"] = "off"

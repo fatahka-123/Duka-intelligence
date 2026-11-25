@@ -214,7 +214,7 @@ def test_duka_score_and_lender_link(client, owner):
     path = link["url"].split("://", 1)[1].split("/", 1)[1]
     anon = new_client()
     page = anon.get("/" + path)
-    assert page.status_code == 200 and "Verified by Duka" in page.text and link["verification_code"] in page.text
+    assert page.status_code == 200 and "Verified by Grovia" in page.text and link["verification_code"] in page.text
     client.post("/api/score/revoke")
     assert anon.get("/" + path).status_code == 404
     assert anon.get("/verify/forged.token").status_code == 404

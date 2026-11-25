@@ -1,4 +1,4 @@
-"""Automation engine: Duka works even when nobody opens the app.
+"""Automation engine: Grovia works even when nobody opens the app.
 
 Jobs (run every minute by an in-process scheduler, or by an external cron hitting /internal/cron):
   • Daily owner summary at the business's chosen hour (WhatsApp or SMS)
@@ -154,7 +154,7 @@ def compose_daily_summary(db: Session, b: Business, day=None) -> str:
     unverified = stale_unverified_codes(db, b, 15)
     if unverified:
         lines.append(f"🚩 {len(unverified)} M-Pesa code(s) typed at the till were never confirmed by M-Pesa")
-    lines += ["", "— Duka Intelligence"]
+    lines += ["", "— Grovia"]
     return "\n".join(lines)
 
 

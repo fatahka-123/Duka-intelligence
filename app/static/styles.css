@@ -1,4 +1,4 @@
-/* Duka Intelligence styles (v0.1 base design + v0.2 additions) */
+/* Grovia styles (v0.1 base design + v0.2 additions) */
 :root{--ink:#14251e;--muted:#718078;--green:#16734a;--lime:#d9f36b;--line:#e8eee9;--bg:#f5f8f5;--white:#fff;--red:#c74646;--amber:#b7791f;--shadow:0 12px 34px #183d2810}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',sans-serif}

@@ -1,4 +1,4 @@
-"""Higher-level intelligence: Duka Score, loss prevention, market benchmarks, price coach, quick entry."""
+"""Higher-level intelligence: Grovia Score, loss prevention, market benchmarks, price coach, quick entry."""
 from __future__ import annotations
 
 import base64
@@ -35,7 +35,7 @@ def interp(x: float, x0: float, y0: float, x1: float, y1: float) -> float:
     return clamp(y0 + (x - x0) * (y1 - y0) / (x1 - x0), min(y0, y1), max(y0, y1))
 
 
-# ======================================================================= Duka Score
+# ======================================================================= Grovia Score
 def monthly_statement(db: Session, b: Business, months: int = 6) -> list[dict]:
     tz = analytics.tz_for(b)
     today = analytics.local_today(b)
@@ -129,7 +129,7 @@ def duka_score(db: Session, b: Business) -> dict:
         "records": {"label": "Record keeping", "score": round(records), "weight": 10,
                     "detail": f"Expenses logged {min(len(exp_weeks), 4)}/4 weeks · {'stock counted' if counted else 'no stock count'} · "
                               f"{'shift cash-ups' if shifts else 'no cash-ups'} · {'M-Pesa live' if b.mpesa_mode in ('sandbox', 'production') else 'M-Pesa not linked'}"},
-        "tenure": {"label": "History on Duka", "score": round(tenure), "weight": 10, "detail": f"{history} day(s) of records"},
+        "tenure": {"label": "History on Grovia", "score": round(tenure), "weight": 10, "detail": f"{history} day(s) of records"},
     }
     score = round(sum(p["score"] * p["weight"] for p in parts.values()) / 100)
     grade = "A" if score >= 80 else "B" if score >= 65 else "C" if score >= 50 else "D"
@@ -153,7 +153,7 @@ def duka_score(db: Session, b: Business) -> dict:
         "collections": "Turn on automatic debt reminders and set credit limits.",
         "growth": "Use the restock plan so best-sellers never run out.",
         "records": "Log expenses weekly, do a monthly stock count, close shifts, and link M-Pesa.",
-        "tenure": "Keep using Duka — lenders value at least 6 months of history.",
+        "tenure": "Keep using Grovia — lenders value at least 6 months of history.",
     }
     weakest = sorted(parts.items(), key=lambda kv: kv[1]["score"])[:3]
     return {
@@ -166,7 +166,7 @@ def duka_score(db: Session, b: Business) -> dict:
         "indicative_repayment": round(capacity, 2),
         "tips": [tips[k] for k, v in weakest if v["score"] < 75],
         "months": months,
-        "disclaimer": "Indicative only, calculated from records entered in Duka. Not a credit decision or financial advice.",
+        "disclaimer": "Indicative only, calculated from records entered in Grovia. Not a credit decision or financial advice.",
     }
 
 
@@ -306,7 +306,7 @@ def benchmarks(db: Session, b: Business, min_shops: int = 3) -> list[dict]:
         mine_price = float(p.selling_price)
         diff = mine_price - med
         out.append({"product_id": p.id, "name": p.name, "your_price": mine_price, "median": round(med, 2), "shops": len(prices),
-                    "scope": f"{b.county} shops" if scope == "local" else "Duka shops nationally",
+                    "scope": f"{b.county} shops" if scope == "local" else "Grovia shops nationally",
                     "difference": round(diff, 2), "difference_pct": round(diff / med * 100, 1) if med else 0,
                     "position": "above" if diff > med * 0.03 else "below" if diff < -med * 0.03 else "in line"})
     return sorted(out, key=lambda x: -abs(x["difference_pct"]))

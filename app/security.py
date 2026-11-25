@@ -118,7 +118,7 @@ def current_user(request: Request, db: Session = Depends(db_session)) -> User:
     return user
 
 
-PAUSED_MESSAGE = "This shop's account is paused. Please contact your Duka provider."
+PAUSED_MESSAGE = "This shop's account is paused. Please contact your Grovia provider."
 
 
 def is_platform_admin(user: User) -> bool:

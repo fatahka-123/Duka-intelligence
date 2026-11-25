@@ -1,5 +1,5 @@
-/* Duka Intelligence v0.3 — smart features UI
- * Quick entry (type or speak), live M-Pesa, shifts & cash-up, Duka Score, automation centre,
+/* Grovia v0.3 — smart features UI
+ * Quick entry (type or speak), live M-Pesa, shifts & cash-up, Grovia Score, automation centre,
  * loss watch and market prices. Loaded after app.js; registers pages into PAGES/NAV.
  */
 'use strict';
@@ -8,7 +8,7 @@ const mpesaOn = () => ['simulator', 'sandbox', 'production'].includes(state.busi
 
 // ------------------------------------------------------------------ navigation additions
 NAV.splice(NAV.findIndex(n => n[0] === 'expenses'), 0, ['mpesa', '◉', 'M-Pesa', 'all']);
-NAV.splice(NAV.findIndex(n => n[0] === 'staff'), 0, ['score', '★', 'Duka Score', 'owner'], ['automation', '⟳', 'Automation', 'owner']);
+NAV.splice(NAV.findIndex(n => n[0] === 'staff'), 0, ['score', '★', 'Grovia Score', 'owner'], ['automation', '⟳', 'Automation', 'owner']);
 
 // ------------------------------------------------------------------ quick entry (type or speak)
 let quickAction = null;
@@ -17,7 +17,7 @@ function quickEntryBox() {
   return `<section class="panel quick"><div class="quick-row">
     <span class="quick-ico" aria-hidden="true">✳</span>
     <input id="quickInput" class="quick-input" maxlength="300" autocomplete="off"
-      placeholder="Tell Duka what happened… e.g. “sold 2 unga 1 sukari mpesa” · “nimelipa stima 1500” · “Kamau paid 500”">
+      placeholder="Tell Grovia what happened… e.g. “sold 2 unga 1 sukari mpesa” · “nimelipa stima 1500” · “Kamau paid 500”">
     ${speech ? `<button class="btn light mic" id="micBtn" title="Speak (English or Kiswahili)" onclick="listen()">🎤</button>` : ''}
     <button class="btn" onclick="quickParse()">Go</button></div>
     <div id="quickPreview"></div></section>`;
@@ -109,7 +109,7 @@ const KIND_ICON = { daily_summary: '☀', debt_reminder: '♙', low_stock: '▤'
 async function openInbox() {
   try {
     const rows = await api('/notifications');
-    openModal(`<h2>Alerts</h2><p>What Duka noticed and did for you automatically.</p>
+    openModal(`<h2>Alerts</h2><p>What Grovia noticed and did for you automatically.</p>
       ${rows.map(n => `<div class="insight ${n.kind === 'fraud_alert' || n.kind === 'cash_variance' ? 'critical' : n.kind === 'price_alert' || n.kind === 'low_stock' ? 'warning' : 'good'}">
         <span class="dot">${KIND_ICON[n.kind] || 'i'}</span><div><b>${esc(n.title)}</b><p style="white-space:pre-wrap">${esc(n.body)}</p><span class="muted" style="font-size:10px">${fmtDateTime(n.created_at)}${n.status === 'sent' ? ' · new' : ''}</span></div></div>`).join('') || '<div class="empty">No alerts yet.</div>'}
       <div class="modal-actions"><button class="btn light" onclick="go('automation');closeModal()">Automation settings</button><button class="btn" onclick="closeModal()">Close</button></div>`);
@@ -182,7 +182,7 @@ async function loadShift() {
     : `<button class="btn light" onclick="openShiftModal()">◎ Open shift</button>`;
 }
 function openShiftModal() {
-  openModal(`<h2>Open your shift</h2><p>Count the cash in the drawer before you start. Duka tracks what should be there.</p>
+  openModal(`<h2>Open your shift</h2><p>Count the cash in the drawer before you start. Grovia tracks what should be there.</p>
     <form id="openShift"><div class="field"><label>Opening cash (float) KSh</label><input name="opening_float" type="number" min="0" step="1" required value="0"></div>
     <div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Start shift</button></div></form>`);
   onSubmit('openShift', async x => { await post('/shifts/open', { opening_float: Number(x.opening_float) }); closeModal(); loadShift(); toast('Shift started'); });
@@ -215,7 +215,7 @@ PAGES.mpesa = {
     return pageHead('M-Pesa', mpesaOn() ? `${b.mpesa_type === 'paybill' ? 'Paybill' : 'Till'} ${esc(b.mpesa_shortcode || '')} · ${b.mpesa_mode === 'simulator' ? 'Simulator mode (demo)' : b.mpesa_mode}` : 'Link your Till or Paybill so payments reconcile themselves.',
       isOwner() ? `<button class="btn light" onclick="mpesaSettings()">⚙ Settings</button>` : '') +
       (mpesaOn() ? `<div id="mpesaBody"><div class="empty">Loading…</div></div>` :
-      `<section class="panel"><div class="hero-empty"><h3>Stop checking SMS at the counter</h3><p>When M-Pesa is linked, every payment to your Till or Paybill appears here and at the till within seconds. Duka matches debt repayments to the right customer automatically, and blocks fake or reused M-Pesa codes.</p>
+      `<section class="panel"><div class="hero-empty"><h3>Stop checking SMS at the counter</h3><p>When M-Pesa is linked, every payment to your Till or Paybill appears here and at the till within seconds. Grovia matches debt repayments to the right customer automatically, and blocks fake or reused M-Pesa codes.</p>
       ${isOwner() ? `<button class="btn" onclick="mpesaSettings()">Link M-Pesa</button> <button class="btn light" onclick="quickSimulator()">Try the simulator</button>` : '<p class="muted">Ask the owner to link M-Pesa.</p>'}</div></section>`);
   },
   async after() {
@@ -300,9 +300,9 @@ async function testMpesa() {
 }
 async function registerUrls() { try { await post('/mpesa/register-urls', {}); toast('URLs registered with Safaricom'); } catch (e) { toast(e.message); } }
 
-// ------------------------------------------------------------------ Duka Score
+// ------------------------------------------------------------------ Grovia Score
 PAGES.score = {
-  render() { return pageHead('Duka Score', 'Your business health — and proof of it for lenders, landlords and suppliers.', `<button class="btn" onclick="shareScore()">Share with a lender</button>`) + '<div id="scoreBody"><div class="empty">Calculating…</div></div>'; },
+  render() { return pageHead('Grovia Score', 'Your business health — and proof of it for lenders, landlords and suppliers.', `<button class="btn" onclick="shareScore()">Share with a lender</button>`) + '<div id="scoreBody"><div class="empty">Calculating…</div></div>'; },
   async after() {
     let s; try { s = await api('/score'); } catch (e) { return toast(e.message); }
     const ring = (v) => { const r = 54, c = 2 * Math.PI * r; return `<svg viewBox="0 0 140 140" width="150" height="150" role="img" aria-label="Score ${v} of 100"><circle cx="70" cy="70" r="${r}" fill="none" stroke="#244a37" stroke-width="12"/><circle cx="70" cy="70" r="${r}" fill="none" stroke="#d9f36b" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c * v / 100} ${c}" transform="rotate(-90 70 70)"/><text x="70" y="78" text-anchor="middle" font-size="36" font-weight="800" fill="#fff" font-family="Manrope">${v}</text></svg>`; };
@@ -319,21 +319,21 @@ PAGES.score = {
   },
 };
 async function shareScore() {
-  openModal(`<h2>Share a verified statement</h2><p>Creates a private, read-only link showing your Duka Score and 6-month performance. It expires automatically and you can revoke all links at any time.</p>
+  openModal(`<h2>Share a verified statement</h2><p>Creates a private, read-only link showing your Grovia Score and 6-month performance. It expires automatically and you can revoke all links at any time.</p>
     <form id="shareForm"><div class="field"><label>Link valid for</label><select name="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></div>
     <div class="modal-actions"><button type="button" class="btn danger" onclick="revokeShares()">Revoke all links</button><button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Create link</button></div></form>`);
   onSubmit('shareForm', async x => {
     const r = await post('/score/share', { days: Number(x.days) });
     openModal(`<h2>Link ready</h2><p>Verification code <b>${esc(r.verification_code)}</b> · expires in ${r.expires_in_days} days</p>
       <input class="search" style="width:100%" readonly value="${esc(r.url)}" onclick="this.select()">
-      <div class="modal-actions"><a class="btn light" target="_blank" rel="noopener" href="${esc(r.url)}">Preview</a><a class="btn light" target="_blank" rel="noopener" href="${waLink('', 'Habari, here is my verified business statement from Duka Intelligence: ' + r.url)}">Send on WhatsApp</a><button class="btn" onclick="navigator.clipboard?.writeText('${esc(r.url)}');toast('Copied')">Copy link</button></div>`);
+      <div class="modal-actions"><a class="btn light" target="_blank" rel="noopener" href="${esc(r.url)}">Preview</a><a class="btn light" target="_blank" rel="noopener" href="${waLink('', 'Habari, here is my verified business statement from Grovia: ' + r.url)}">Send on WhatsApp</a><button class="btn" onclick="navigator.clipboard?.writeText('${esc(r.url)}');toast('Copied')">Copy link</button></div>`);
   });
 }
 async function revokeShares() { try { await post('/score/revoke', {}); closeModal(); toast('All shared links revoked'); } catch (e) { toast(e.message); } }
 
 // ------------------------------------------------------------------ Automation centre
 PAGES.automation = {
-  render() { return pageHead('Automation', 'Duka works while you are away: summaries, reminders and alerts — sent automatically.') + '<div id="autoBody"><div class="empty">Loading…</div></div>'; },
+  render() { return pageHead('Automation', 'Grovia works while you are away: summaries, reminders and alerts — sent automatically.') + '<div id="autoBody"><div class="empty">Loading…</div></div>'; },
   async after() {
     let s, preview, out;
     try { [s, preview, out] = await Promise.all([api('/automation/settings'), api('/automation/preview-summary'), api('/notifications?outbox=true')]); } catch (e) { return toast(e.message); }
@@ -354,7 +354,7 @@ PAGES.automation = {
       <div class="field" style="max-width:260px"><label>County</label><input name="county" value="${esc(s.county)}" placeholder="e.g. Nairobi" list="counties"><datalist id="counties">${['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Kiambu', 'Machakos', 'Uasin Gishu', 'Kakamega', 'Nyeri', 'Meru', 'Kisii', 'Kajiado'].map(c => `<option value="${c}">`).join('')}</datalist></div>
       <div class="modal-actions"><button type="button" class="btn light" onclick="runAutomation()">Send summary now</button><button class="btn" type="submit">Save</button></div></form></section>
     <section class="panel"><div class="panel-head"><div><h3>Tonight's summary</h3><p>Preview of what the owner receives</p></div></div><div class="phone"><div class="bubble">${esc(preview.text).replace(/\*(.+?)\*/g, '<b>$1</b>')}</div></div></section></div>
-    <section class="panel"><div class="panel-head"><div><h3>Outbox</h3><p>Every message Duka sent or prepared</p></div></div><div class="table-wrap"><table><thead><tr><th>WHEN</th><th>TYPE</th><th>TO</th><th>MESSAGE</th><th>STATUS</th></tr></thead><tbody>
+    <section class="panel"><div class="panel-head"><div><h3>Outbox</h3><p>Every message Grovia sent or prepared</p></div></div><div class="table-wrap"><table><thead><tr><th>WHEN</th><th>TYPE</th><th>TO</th><th>MESSAGE</th><th>STATUS</th></tr></thead><tbody>
       ${out.map(n => `<tr><td>${fmtDateTime(n.created_at)}</td><td>${esc(n.kind.replace('_', ' '))}</td><td>${esc(n.recipient)}<div class="muted">${esc(n.channel)}</div></td><td style="white-space:normal;max-width:420px"><b>${esc(n.title)}</b><div class="muted" style="white-space:pre-wrap">${esc(n.body.slice(0, 220))}${n.body.length > 220 ? '…' : ''}</div></td>
         <td><span class="badge ${n.status === 'failed' ? 'red' : n.status === 'simulated' ? 'warn' : ''}">${esc(n.status)}</span>${n.error ? `<div class="muted">${esc(n.error)}</div>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nothing sent yet.</td></tr>'}</tbody></table></div></section>`;
     onSubmit('autoForm', async (x, form) => {
@@ -387,7 +387,7 @@ async function renderBenchmarks() {
   try {
     const r = await api('/benchmarks');
     if (!r.opted_in) { el.innerHTML = isOwner() ? `<section class="panel"><div class="insight info"><span class="dot">i</span><div><b>See what other shops charge</b><p>Join the anonymous market prices network to compare your prices with the median at nearby shops.</p><button class="link" onclick="go('automation')">Turn it on →</button></div></div></section>` : ''; return; }
-    el.innerHTML = r.items.length ? `<section class="panel"><div class="panel-head"><div><h3>Market prices</h3><p>Anonymous median from other Duka shops selling the same barcode</p></div></div><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>YOUR PRICE</th><th>MARKET MEDIAN</th><th>DIFFERENCE</th><th>COMPARED WITH</th></tr></thead><tbody>
+    el.innerHTML = r.items.length ? `<section class="panel"><div class="panel-head"><div><h3>Market prices</h3><p>Anonymous median from other Grovia shops selling the same barcode</p></div></div><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>YOUR PRICE</th><th>MARKET MEDIAN</th><th>DIFFERENCE</th><th>COMPARED WITH</th></tr></thead><tbody>
       ${r.items.map(i => `<tr><td><b>${esc(i.name)}</b></td><td>${money(i.your_price)}</td><td>${money(i.median)}</td><td><span class="badge ${i.position === 'above' ? 'warn' : i.position === 'below' ? '' : ''}">${i.position === 'in line' ? 'In line' : `${i.difference > 0 ? '+' : ''}${money(i.difference)} (${i.difference_pct > 0 ? '+' : ''}${i.difference_pct}%)`}</span></td><td class="muted">${i.shops} ${esc(i.scope)}</td></tr>`).join('')}</tbody></table></div></section>`
       : `<section class="panel"><div class="empty">You're in the market prices network. Comparisons appear once 3+ other shops sell the same barcoded products.</div></section>`;
   } catch { el.innerHTML = ''; }
@@ -422,7 +422,7 @@ async function renderPurchaseOrders() {
       <div class="table-wrap"><table><thead><tr><th>ORDER</th><th>SUPPLIER</th><th>ITEMS</th><th>TOTAL</th><th>STATUS</th><th></th></tr></thead><tbody>
       ${rows.map(o => `<tr class="clickable" onclick="showPO(${o.id})"><td><b>${esc(o.reference)}</b><div class="muted">${fmtDate(o.created_at)}</div></td><td>${esc(o.supplier || '—')}</td>
         <td>${o.items.length}</td><td><b>${money(o.total)}</b></td><td><span class="badge ${PO_BADGE[o.status][0]}">${PO_BADGE[o.status][1]}</span></td><td style="text-align:right"><button class="btn light small">Open</button></td></tr>`).join('')
-        || '<tr><td colspan="6" class="empty">No orders yet. Start one from the restock plan — Duka already knows what is running out.</td></tr>'}</tbody></table></div></section>`;
+        || '<tr><td colspan="6" class="empty">No orders yet. Start one from the restock plan — Grovia already knows what is running out.</td></tr>'}</tbody></table></div></section>`;
   } catch (e) { el.innerHTML = ''; }
 }
 async function newPO(fromPlan) {
@@ -502,7 +502,7 @@ PAGES.suppliers.after = async function () { if (_supAfter) await _supAfter.call(
 let adminFilter = '';
 PAGES.admin = {
   render() {
-    return pageHead('Admin · all shops', 'Your clients: create their shop and login, see who is using Duka, pause an account or reset a password.',
+    return pageHead('Admin · all shops', 'Your clients: create their shop and login, see who is using Grovia, pause an account or reset a password.',
       `<button class="btn" onclick="newClient()">＋ New client</button>`) + '<div id="adminBody"><div class="empty">Loading…</div></div>';
   },
   async after() {
@@ -530,7 +530,7 @@ function drawAdminRows() {
 }
 function loginCard(title, shop, login) {
   const url = location.origin;
-  const msg = `Habari! Your Duka Intelligence account for ${shop} is ready.\n\nOpen: ${url}\nEmail: ${login.email}\nTemporary password: ${login.temporary_password}\n\nYou'll be asked to choose your own password the first time you sign in.`;
+  const msg = `Habari! Your Grovia account for ${shop} is ready.\n\nOpen: ${url}\nEmail: ${login.email}\nTemporary password: ${login.temporary_password}\n\nYou'll be asked to choose your own password the first time you sign in.`;
   openModal(`<h2>${title}</h2><p>Give these details to the client. The temporary password is shown <b>only now</b> — they must replace it at first sign-in.</p>
     <div class="quick-card ok" style="font-size:13px;line-height:1.8"><div>Website: <b>${esc(url)}</b></div><div>Email: <b>${esc(login.email)}</b></div><div>Temporary password: <b style="font-family:ui-monospace,monospace;font-size:15px">${esc(login.temporary_password)}</b></div></div>
     <div class="modal-actions" style="flex-wrap:wrap"><button class="btn light" id="copyLogin">Copy</button><a class="btn light" target="_blank" rel="noopener" href="${waLink(window._clientPhone || '', msg)}">Send on WhatsApp</a><button class="btn" onclick="closeModal();renderPage()">Done</button></div>`);

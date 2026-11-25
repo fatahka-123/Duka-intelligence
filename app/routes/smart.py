@@ -1,4 +1,4 @@
-"""v0.3 'smart' features: M-Pesa auto-reconciliation, shifts & cash-up, automation, Duka Score, loss watch,
+"""v0.3 'smart' features: M-Pesa auto-reconciliation, shifts & cash-up, automation, Grovia Score, loss watch,
 market benchmarks and quick entry."""
 from __future__ import annotations
 
@@ -137,7 +137,7 @@ def stk_push(data: StkIn, request: Request, user: User = Depends(current_user), 
         tx.checkout_request_id = "ws_SIM_" + secrets.token_hex(8)
     else:
         try:
-            r = mpesa.Daraja(b, base_url(request)).stk_push(phone, amount, account_ref=b.name[:12] or "Duka", description="Purchase")
+            r = mpesa.Daraja(b, base_url(request)).stk_push(phone, amount, account_ref=b.name[:12] or "Grovia", description="Purchase")
         except mpesa.MpesaError as e:
             raise HTTPException(400, str(e))
         tx.checkout_request_id = r["CheckoutRequestID"]
@@ -454,7 +454,7 @@ def cron(x_cron_secret: str = Header(default="")):
     return automation.run_all()
 
 
-# ======================================================================= Duka Score & lender links
+# ======================================================================= Grovia Score & lender links
 @router.get("/api/score")
 def score(user: User = Depends(require_owner), db: Session = Depends(db_session)):
     return intelligence.duka_score(db, biz(db, user))
@@ -500,13 +500,13 @@ def verify_page(token: str, db: Session = Depends(db_session)):
 h1{{margin:0 0 4px}}.muted{{color:#718078;font-size:13px}}.score{{display:flex;gap:18px;align-items:center;margin:22px 0;padding:18px;background:#10251d;color:#fff;border-radius:14px}}
 .big{{font-size:48px;font-weight:800}}table{{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}}th,td{{text-align:left;padding:8px;border-bottom:1px solid #eef2ee}}th{{color:#718078;font-size:11px;text-transform:uppercase}}
 .badge{{background:#d9f36b;color:#163523;border-radius:99px;padding:4px 10px;font-weight:700;font-size:12px}}</style></head><body><main>
-<span class="badge">✓ Verified by Duka Intelligence</span><h1 style="margin-top:12px">{e(b.name)}</h1>
+<span class="badge">✓ Verified by Grovia</span><h1 style="margin-top:12px">{e(b.name)}</h1>
 <div class="muted">{e(b.address or '')} {('· ' + e(b.county)) if b.county else ''} · Statement generated {utcnow():%d %b %Y %H:%M} UTC · Verification code <b>{code}</b></div>
-<div class="score"><div class="big">{s['score']}</div><div><b>Duka Score · Grade {s['grade']} · {e(s['status'])}</b><br>
+<div class="score"><div class="big">{s['score']}</div><div><b>Grovia Score · Grade {s['grade']} · {e(s['status'])}</b><br>
 <span style="color:#b9cbbf">{s['history_days']} days of records · avg monthly revenue KSh {s['average_monthly_revenue']:,.0f} · avg monthly net profit KSh {s['average_monthly_net_profit']:,.0f}</span></div></div>
 <h3>Monthly performance (KSh)</h3><table><tr><th>Month</th><th>Revenue</th><th>Gross profit</th><th>Expenses</th><th>Net profit</th><th>Sales</th></tr>{rows}</table>
 <h3>Score breakdown</h3><table><tr><th>Factor</th><th>Score</th><th>Evidence</th></tr>{comps}</table>
-<p class="muted">Figures come from transactions recorded in Duka by the business. M-Pesa receipts are confirmed by Safaricom only where the business has linked M-Pesa.
+<p class="muted">Figures come from transactions recorded in Grovia by the business. M-Pesa receipts are confirmed by Safaricom only where the business has linked M-Pesa.
 {e(s['disclaimer'])} Shared by the owner; this link expires automatically and can be revoked at any time.</p></main></body></html>"""
     return HTMLResponse(page, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 

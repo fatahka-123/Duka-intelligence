@@ -225,7 +225,7 @@ def forgot_password(data: ForgotIn, request: Request, db: Session = Depends(db_s
     code = f"{secrets.randbelow(1_000_000):06d}"
     user.reset_code_hash, user.reset_expires_at, user.reset_attempts = hash_password(code), utcnow() + timedelta(minutes=RESET_MINUTES), 0
     db.commit()
-    body = f"Duka Intelligence: your password reset code is {code}. It expires in {RESET_MINUTES} minutes. If you didn't ask for this, ignore it."
+    body = f"Grovia: your password reset code is {code}. It expires in {RESET_MINUTES} minutes. If you didn't ask for this, ignore it."
     try:
         (automation.send_sms if providers["sms"] else automation.send_whatsapp)(phone, body)
     except Exception:  # noqa: BLE001 — never reveal delivery details to an anonymous caller

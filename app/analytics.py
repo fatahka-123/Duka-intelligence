@@ -471,7 +471,7 @@ def answer_question(db: Session, business: Business, question: str, can_see_cost
         else:
             answer = (f"Profit for {period.label}:\n• Revenue: {ksh(r['revenue'])}\n• Cost of goods sold: {ksh(r['cost_of_goods_sold'])}\n"
                       f"• Gross profit: {ksh(r['gross_profit'])} ({r['gross_margin_pct']}% margin)\n• Operating expenses: {ksh(r['operating_expenses'])}\n"
-                      f"• Estimated operating profit: {ksh(r['estimated_net_operating_profit'])}{trend}\n\nOnly costs recorded in Duka are included.")
+                      f"• Estimated operating profit: {ksh(r['estimated_net_operating_profit'])}{trend}\n\nOnly costs recorded in Grovia are included.")
     elif intent == "sales":
         r = summary_report(db, business, period)
         data = {k: r[k] for k in ("revenue", "transactions", "average_sale")}
@@ -499,4 +499,4 @@ def answer_question(db: Session, business: Business, question: str, can_see_cost
                   "I can answer questions about sales, profit, top sellers, what to restock, who owes you, slow-moving stock, "
                   "expenses and stock value. Try “What did I sell today?”, “What should I restock?” or “Who owes me money?”.")
     return {"answer": answer, "intent": intent or "help", "period": period.label, "data": data,
-            "source": "Duka business records", "as_of": utcnow().isoformat()}
+            "source": "Grovia business records", "as_of": utcnow().isoformat()}

@@ -1,4 +1,4 @@
-/* Duka Intelligence — web client (v0.2)
+/* Grovia — web client (v0.2)
  * Plain JS, no build step. Pages are rendered as HTML strings into #pageContent.
  * All user-supplied text MUST pass through esc() before being placed into HTML.
  */
@@ -135,11 +135,11 @@ window.addEventListener('offline', renderOfflineBar);
 // ------------------------------------------------------------------ auth
 function authView(mode = 'login') {
   const reg = mode === 'register';
-  $('#root').innerHTML = `<div class="auth"><section class="auth-art"><div class="brand"><div class="brand-mark">D</div><div><b>DUKA INTELLIGENCE</b><small>BUSINESS, MADE CLEAR.</small></div></div>
+  $('#root').innerHTML = `<div class="auth"><section class="auth-art"><div class="brand"><div class="brand-mark">G</div><div><b>GROVIA</b><small>BUSINESS, MADE CLEAR.</small></div></div>
   <div><div class="eyebrow" style="color:#d9f36b">THE SMARTER WAY TO RUN RETAIL</div><h1>Know your numbers.<br>Grow with confidence.</h1>
   <p>Sales, stock, credit customers and plain-language business insights in one simple workspace — built for African shops, in English and Kiswahili.</p></div>
-  <div style="font-size:11px;color:#90a99a">© ${new Date().getFullYear()} Duka Intelligence · Early access</div></section>
-  <section class="auth-form"><form class="auth-box" id="authForm"><div class="eyebrow">DUKA INTELLIGENCE</div>
+  <div style="font-size:11px;color:#90a99a">© ${new Date().getFullYear()} Grovia · Early access</div></section>
+  <section class="auth-form"><form class="auth-box" id="authForm"><div class="eyebrow">GROVIA</div>
   <h2>${reg ? 'Create your workspace' : 'Welcome back'}</h2><p>${reg ? 'Set up your business account in less than a minute.' : 'Sign in to continue managing your business.'}</p>
   ${reg ? `<div class="field"><label>Business name</label><input name="business_name" required minlength="2" placeholder="e.g. Umoja Mini Mart"></div>
   <div class="field"><label>Your name</label><input name="name" required minlength="2" placeholder="Full name" autocomplete="name"></div>
@@ -148,7 +148,7 @@ function authView(mode = 'login') {
   <div class="field"><label>Password</label><input name="password" type="password" required minlength="${reg ? 10 : 1}" autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="${reg ? 'At least 10 characters' : 'Your password'}"></div>
   ${reg ? '<p style="font-size:10px;color:#77857c">Use a unique password. Your data is isolated from other businesses.</p>' : '<p style="font-size:10px;color:#77857c">Staff accounts are created by the shop owner under Staff.</p>'}
   <button class="btn" style="width:100%;padding:13px" type="submit">${reg ? 'Create business account' : 'Sign in'} →</button>
-  <div class="auth-toggle">${reg ? 'Already have an account?' : 'New to Duka?'} <button class="link" type="button" id="switchAuth">${reg ? 'Sign in' : 'Create an account'}</button></div>
+  <div class="auth-toggle">${reg ? 'Already have an account?' : 'New to Grovia?'} <button class="link" type="button" id="switchAuth">${reg ? 'Sign in' : 'Create an account'}</button></div>
   ${reg ? '' : '<div class="auth-toggle" style="margin-top:6px"><button class="link" type="button" id="forgotLink">Forgot password?</button></div>'}
   <div id="authError" role="alert" style="color:#c74646;font-size:11px;margin-top:12px"></div></form></section></div>`;
   $('#switchAuth').onclick = () => authView(reg ? 'login' : 'register');
@@ -168,9 +168,9 @@ function authView(mode = 'login') {
 
 // First sign-in with a temporary password (set by the provider or the shop owner): choose your own before going further
 function firstPasswordView() {
-  $('#root').innerHTML = `<div class="auth"><section class="auth-art"><div class="brand"><div class="brand-mark">D</div><div><b>DUKA INTELLIGENCE</b><small>BUSINESS, MADE CLEAR.</small></div></div>
+  $('#root').innerHTML = `<div class="auth"><section class="auth-art"><div class="brand"><div class="brand-mark">G</div><div><b>GROVIA</b><small>BUSINESS, MADE CLEAR.</small></div></div>
     <div><div class="eyebrow" style="color:#d9f36b">KARIBU</div><h1>Welcome to ${esc(state.business.name)}.</h1><p>One quick step: replace the temporary password you were given with your own. Only you will know it.</p></div><div></div></section>
-    <section class="auth-form"><form class="auth-box" id="firstPw"><div class="eyebrow">DUKA INTELLIGENCE</div><h2>Choose your password</h2>
+    <section class="auth-form"><form class="auth-box" id="firstPw"><div class="eyebrow">GROVIA</div><h2>Choose your password</h2>
     <p>Signed in as <b>${esc(state.me.email)}</b>.</p>
     <div class="field"><label>Temporary password</label><input name="current_password" type="password" required autocomplete="current-password"></div>
     <div class="field"><label>New password</label><input name="new_password" type="password" required minlength="10" autocomplete="new-password" placeholder="At least 10 characters"></div>
@@ -192,7 +192,7 @@ function firstPasswordView() {
 
 function forgotView(email = '') {
   const box = $('.auth-form');
-  box.innerHTML = `<form class="auth-box" id="forgotForm"><div class="eyebrow">DUKA INTELLIGENCE</div><h2>Reset your password</h2>
+  box.innerHTML = `<form class="auth-box" id="forgotForm"><div class="eyebrow">GROVIA</div><h2>Reset your password</h2>
     <p>We'll send a 6-digit code to the phone number on your account.</p>
     <div class="field"><label>Email address</label><input name="email" type="email" required value="${esc(email)}" autocomplete="email"></div>
     <button class="btn" style="width:100%;padding:13px" type="submit">Send code →</button>
@@ -241,7 +241,7 @@ const NAV = [
   ['expenses', '◈', 'Expenses', 'manager'],
   ['suppliers', '⇄', 'Suppliers', 'manager'],
   ['reports', '▥', 'Reports', 'manager'],
-  ['assistant', '✳', 'Ask Duka', 'all'],
+  ['assistant', '✳', 'Ask Grovia', 'all'],
   ['staff', '☺', 'Staff', 'owner'],
   ['settings', '⚙', 'Settings', 'all'],
   ['admin', '⛭', 'Admin · all shops', 'platform'],
@@ -250,7 +250,7 @@ const allowed = ([, , , who]) => who === 'all' || (who === 'manager' && isManage
 
 function appShell() {
   const initials = state.me.name.split(' ').map(x => x[0]).slice(0, 2).join('').toUpperCase();
-  $('#root').innerHTML = `<div class="shell"><aside class="sidebar" id="sidebar"><div class="brand"><div class="brand-mark">D</div><div><b>DUKA INTELLIGENCE</b><small>BUSINESS, MADE CLEAR.</small></div></div>
+  $('#root').innerHTML = `<div class="shell"><aside class="sidebar" id="sidebar"><div class="brand"><div class="brand-mark">G</div><div><b>GROVIA</b><small>BUSINESS, MADE CLEAR.</small></div></div>
   <div class="nav-label">Workspace</div><nav class="nav">${NAV.filter(allowed).map(([id, ico, label]) => `<button data-page="${id}"><span class="ico">${ico}</span>${label}</button>`).join('')}</nav>
   <div class="side-bottom"><strong>${esc(state.business.name)}</strong><span>${esc(state.me.name)} · <span class="role-tag">${esc(state.me.role)}</span></span>
   <div style="margin-top:15px"><button style="background:none;border:0;color:#b7c8bd;padding:0;font-size:12px" onclick="logout()">↪ Sign out</button></div></div></aside>
@@ -372,7 +372,7 @@ PAGES.dashboard = {
     </div>
     <div class="grid-main">
       <section class="panel"><div class="panel-head"><div><h3>Last 7 days</h3><p>Daily sales revenue · today highlighted</p></div><button class="btn light small" onclick="go('${isManager() ? 'reports' : 'sales'}')">Details</button></div>${barChart(pts)}</section>
-      ${isManager() ? `<section class="panel"><div class="panel-head"><div><h3>Duka noticed</h3><p>Things that need your attention</p></div><button class="btn light small" onclick="go('assistant')">Ask Duka</button></div>${insightList(d.insights || [])}</section>`
+      ${isManager() ? `<section class="panel"><div class="panel-head"><div><h3>Grovia noticed</h3><p>Things that need your attention</p></div><button class="btn light small" onclick="go('assistant')">Ask Grovia</button></div>${insightList(d.insights || [])}</section>`
         : `<section class="panel"><div class="panel-head"><div><h3>Stock attention</h3><p>At or below reorder level</p></div></div>${lowStockList(d.low_stock)}</section>`}
     </div>
     <div class="grid-main">
@@ -906,7 +906,7 @@ PAGES.reports = {
         <div class="kv"><span>Cost of goods sold</span><b>− ${money(r.cost_of_goods_sold)}</b></div><div class="kv"><span>Gross profit</span><b>${money(r.gross_profit)}</b></div>
         <div class="kv"><span>Operating expenses</span><b>− ${money(r.operating_expenses)}</b></div><div class="kv" style="font-size:14px"><b>Estimated net profit</b><b class="delta ${r.estimated_net_operating_profit >= 0 ? 'up' : 'down'}">${money(r.estimated_net_operating_profit)}</b></div>
         <div class="kv"><span class="muted">Sold on credit in period</span><span class="muted">${money(r.credit_issued)}</span></div>
-        <div class="footer-note">Based only on what is recorded in Duka. Not a statutory financial statement.</div></section></div>
+        <div class="footer-note">Based only on what is recorded in Grovia. Not a statutory financial statement.</div></section></div>
     <div class="grid-main"><section class="panel"><div class="panel-head"><div><h3>How customers paid</h3><p>Money received in this period</p></div><a class="btn light small" href="/api/export/payments.csv?period=${reportPeriod}">Export</a></div>${r.payment_methods.length ? hbars(r.payment_methods.sort((a, b) => b.amount - a.amount).map(m => ({ label: METHODS[m.method] || m.method, value: m.amount })), pmTotal) : '<div class="empty">No payments.</div>'}</section>
       <section class="panel"><div class="panel-head"><div><h3>Expenses by category</h3><p>${money(r.operating_expenses)} total</p></div></div>${r.expenses_by_category.length ? hbars(r.expenses_by_category.map(c => ({ label: c.category, value: c.amount })), r.operating_expenses) : '<div class="empty">No expenses recorded.</div>'}</section></div>`;
   },
@@ -917,11 +917,11 @@ const SUGGESTIONS = ['What did I sell today?', 'What should I restock?', 'Who ow
 PAGES.assistant = {
   render() {
     const sugg = SUGGESTIONS.filter(q => isManager() || !/profit|faida|not selling/i.test(q));
-    return pageHead('Ask Duka', 'Ask about your business in English or Kiswahili. Answers come only from your own records.') +
+    return pageHead('Ask Grovia', 'Ask about your business in English or Kiswahili. Answers come only from your own records.') +
       `<section class="panel"><div class="chat" id="chat">${chatLog.length ? chatLog.map(chatBubble).join('') : `<div class="msg bot">Habari! I can tell you about sales, profit, top sellers, what to restock, who owes you and slow-moving stock. Try a question below.</div>`}</div>
       <div class="chips" style="margin:14px 0">${sugg.map(q => `<button class="chip" onclick="ask(this.textContent)">${esc(q)}</button>`).join('')}</div>
       <form id="askForm" style="display:flex;gap:8px"><input class="search" id="askInput" style="flex:1" placeholder="Ask about your business…" required maxlength="500" autocomplete="off"><button class="btn" type="submit">Ask</button></form>
-      <div class="footer-note">Duka's assistant uses fixed rules over your data — it does not send anything to an outside AI service.</div></section>`;
+      <div class="footer-note">Grovia's assistant uses fixed rules over your data — it does not send anything to an outside AI service.</div></section>`;
   },
   after() {
     $('#askForm').onsubmit = e => { e.preventDefault(); ask($('#askInput').value); $('#askInput').value = ''; };
@@ -982,7 +982,7 @@ PAGES.settings = {
     const b = state.business;
     const t = themeChoice();
     return pageHead('Settings', 'Your business profile, receipts and account security.') + `
-      <section class="panel"><div class="panel-head"><div><h3>Appearance</h3><p>Choose how Duka looks on this device. Dark is easier on the eyes at night and saves battery on many phones.</p></div></div>
+      <section class="panel"><div class="panel-head"><div><h3>Appearance</h3><p>Choose how Grovia looks on this device. Dark is easier on the eyes at night and saves battery on many phones.</p></div></div>
       <div class="theme-pick" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([k, v]) => `<button type="button" role="radio" aria-checked="${t === k}" class="theme-opt ${t === k ? 'active' : ''}" data-choice="${k}" onclick="setTheme('${k}')">
         <div class="swatch sw-${k}">${k === 'system' ? '' : '<i></i><i></i>'}</div><b>${v}</b></button>`).join('')}</div></section>
       <div class="grid-main">
@@ -998,8 +998,8 @@ PAGES.settings = {
         <form id="pwForm"><div class="field" style="margin-bottom:10px"><label>Current password</label><input name="current_password" type="password" required autocomplete="current-password"></div>
         <div class="field"><label>New password</label><input name="new_password" type="password" required minlength="10" autocomplete="new-password"></div>
         <div class="modal-actions"><button class="btn" type="submit">Change password</button></div></form>
-        <div style="border-top:1px solid var(--line);margin-top:18px;padding-top:14px"><b style="font-size:12px">Lost a phone?</b><p class="muted" style="font-size:11px">Sign out of Duka on every device, including this one.</p><button class="btn danger" onclick="logoutAll()">Sign out everywhere</button></div>
-        ${isOwner() ? `<div style="border-top:1px solid var(--line);margin-top:18px;padding-top:14px"><b style="font-size:12px">Back up your data</b><p class="muted" style="font-size:11px">Download everything Duka has recorded for your shop — sales, stock, customers, M-Pesa, expenses — as one file. Keep it somewhere safe, e.g. once a week.</p><a class="btn light" href="/api/export/backup.json">Download backup</a></div>` : ''}
+        <div style="border-top:1px solid var(--line);margin-top:18px;padding-top:14px"><b style="font-size:12px">Lost a phone?</b><p class="muted" style="font-size:11px">Sign out of Grovia on every device, including this one.</p><button class="btn danger" onclick="logoutAll()">Sign out everywhere</button></div>
+        ${isOwner() ? `<div style="border-top:1px solid var(--line);margin-top:18px;padding-top:14px"><b style="font-size:12px">Back up your data</b><p class="muted" style="font-size:11px">Download everything Grovia has recorded for your shop — sales, stock, customers, M-Pesa, expenses — as one file. Keep it somewhere safe, e.g. once a week.</p><a class="btn light" href="/api/export/backup.json">Download backup</a></div>` : ''}
       </section></div>`;
   },
   after() {

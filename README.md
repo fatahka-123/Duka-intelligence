@@ -1,4 +1,4 @@
-# Duka Intelligence — v0.3
+# Grovia — v0.3
 
 Point of sale, stock, customer credit and plain-language business intelligence for African shops.
 FastAPI + SQLAlchemy + PostgreSQL (SQLite for local dev), installable PWA frontend with no build step.

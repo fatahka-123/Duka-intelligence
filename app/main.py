@@ -1,4 +1,4 @@
-"""Duka Intelligence — FastAPI application entry point."""
+"""Grovia — FastAPI application entry point."""
 from __future__ import annotations
 
 import asyncio
@@ -72,7 +72,7 @@ async def lifespan(_: FastAPI):
             await task
 
 
-app = FastAPI(title="Duka Intelligence", version=VERSION, lifespan=lifespan,
+app = FastAPI(title="Grovia", version=VERSION, lifespan=lifespan,
               description="Retail operations and business intelligence for African SMEs")
 
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 — renamed to Grovia
+- The app is now **Grovia** everywhere users see it: sign-in page, sidebar, browser tab, installed-app name and icon,
+  *Ask Grovia*, *Grovia Score*, verified statements, WhatsApp/SMS texts. Internal names (env vars, cookies, saved settings)
+  are unchanged, so nobody is signed out and no configuration changes
+
 ## 0.5.0 — provider admin & client onboarding
 - **Admin · all shops** page for the people listed in `PLATFORM_ADMINS` (invisible — 404 — to everyone else): every client shop
   with owner, staff count, 30-day sales, last activity and M-Pesa mode; search; totals across shops

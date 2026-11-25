@@ -98,3 +98,43 @@ def test_staff_added_by_owner_must_change_password(client, owner):
     client.post("/api/staff", json={"name": "New Cashier", "email": "nc-v05@example.com", "password": PASSWORD, "role": "cashier"})
     c2 = new_client()
     assert c2.post("/api/auth/login", json={"email": "nc-v05@example.com", "password": PASSWORD}).json()["user"]["must_change_password"]
+
+
+# ---------------------------------------------------------------- deleting a shop when the contract ends
+def test_delete_shop_requires_pause_and_exact_name_then_erases_everything(admin):
+    c, info = admin
+    r = make_client(c, business_name="Ending Shop")
+    bid = r["business"]["id"]
+    shop = new_client()
+    shop.post("/api/auth/login", json={"email": r["login"]["email"], "password": r["login"]["temporary_password"]})
+    p = add_product(shop, stock_qty=5)
+    cust = shop.post("/api/customers", json={"name": "Mteja"}).json()
+    shop.post("/api/sales", json={"items": [{"product_id": p["id"], "quantity": 2}], "payment_method": "credit", "customer_id": cust["id"]})
+    shop.post("/api/purchase-orders", json={"items": [{"product_id": p["id"], "quantity": 3}]})
+    shop.post("/api/shifts/open", json={"opening_float": 100})
+    body = {"confirm_name": "Ending Shop", "reason": "Contract terminated"}
+    assert c.post(f"/api/admin/businesses/{bid}/delete", json=body).status_code == 400  # still active
+    c.post(f"/api/admin/businesses/{bid}/status", json={"active": False})
+    assert c.post(f"/api/admin/businesses/{bid}/delete", json={**body, "confirm_name": "ending shop"}).status_code == 400
+    backup = c.get(f"/api/admin/businesses/{bid}/backup.json")
+    assert backup.status_code == 200 and backup.json()["sales"] and "ending-shop" in backup.headers["content-disposition"]
+    done = c.post(f"/api/admin/businesses/{bid}/delete", json=body)
+    assert done.status_code == 200, done.text
+    assert done.json()["deleted"]["sales"] == 1
+    assert all(b["id"] != bid for b in c.get("/api/admin/businesses").json()["businesses"])
+    assert new_client().post("/api/auth/login", json={"email": r["login"]["email"], "password": r["login"]["temporary_password"]}).status_code == 401
+    from app.db import SessionLocal, Sale, Product, User
+    from sqlalchemy import select, func
+    with SessionLocal() as db:
+        for model in (Sale, Product, User):
+            assert db.scalar(select(func.count(model.id)).where(model.business_id == bid)) == 0
+    log = c.get("/api/audit").json()
+    assert any(a["action"] == "platform.delete_shop" and "Contract terminated" in a["detail"] for a in log)
+
+
+def test_cannot_delete_own_shop_and_non_admin_cannot_delete(client, owner, admin):
+    c, info = admin
+    own = info["business"]["id"]
+    assert c.post(f"/api/admin/businesses/{own}/delete", json={"confirm_name": "Provider HQ", "reason": "test"}).status_code == 400
+    assert client.post(f"/api/admin/businesses/{own}/delete", json={"confirm_name": "Provider HQ", "reason": "test"}).status_code == 404
+    assert client.get(f"/api/admin/businesses/{own}/backup.json").status_code == 404

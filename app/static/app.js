@@ -31,17 +31,26 @@ const store = {
 
 // ------------------------------------------------------------------ theme (light / dark / follow the phone)
 const THEMES = { light: 'Light', dark: 'Dark', system: 'Same as device' };
+// Colour themes: [label, accent, sidebar, highlight]
+const ACCENTS = {
+  forest: ['Forest', '#16734a', '#0f241b', '#d9f36b'], ocean: ['Ocean', '#1d5fd1', '#0c1730', '#7dd3fc'],
+  sunset: ['Sunset', '#d1541d', '#26120d', '#fdc27a'], royal: ['Royal', '#6d3fd1', '#170f2e', '#c4b5fd'],
+  rose: ['Rose', '#c2185b', '#270d18', '#f9a8d4'], graphite: ['Graphite', '#2f3b4d', '#0e1420', '#facc15'],
+};
 const themeChoice = () => store.get('duka_theme', 'light');
-function applyTheme(choice = themeChoice()) {
+const accentChoice = () => { const a = store.get('duka_accent', 'forest'); return ACCENTS[a] ? a : 'forest'; };
+function applyTheme(choice = themeChoice(), accent = accentChoice()) {
   const dark = choice === 'dark' || (choice === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  $('meta[name=theme-color]')?.setAttribute('content', dark ? '#08110d' : '#10251d');
+  const root = document.documentElement;
+  root.dataset.theme = dark ? 'dark' : 'light'; root.dataset.accent = accent;
+  $('meta[name=theme-color]')?.setAttribute('content', ACCENTS[accent][2]);
 }
-function setTheme(choice) {
-  store.set('duka_theme', choice); applyTheme(choice);
-  $$('.theme-opt').forEach(b => { b.classList.toggle('active', b.dataset.choice === choice); b.setAttribute('aria-checked', b.dataset.choice === choice); });
-  toast(`Theme: ${THEMES[choice]}`);
+function markPicked() {
+  $$('[data-choice]').forEach(b => { const on = b.dataset.choice === themeChoice(); b.classList.toggle('active', on); b.setAttribute('aria-checked', on); });
+  $$('[data-accent-choice]').forEach(b => { const on = b.dataset.accentChoice === accentChoice(); b.classList.toggle('active', on); b.setAttribute('aria-checked', on); });
 }
+function setTheme(choice) { store.set('duka_theme', choice); applyTheme(); markPicked(); toast(`Mode: ${THEMES[choice]}`); }
+function setAccent(accent) { store.set('duka_accent', accent); applyTheme(); markPicked(); toast(`Theme: ${ACCENTS[accent][0]}`); }
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (themeChoice() === 'system') applyTheme(); });
 applyTheme();
 
@@ -136,7 +145,7 @@ window.addEventListener('offline', renderOfflineBar);
 function authView(mode = 'login') {
   const reg = mode === 'register';
   $('#root').innerHTML = `<div class="auth"><section class="auth-art"><div class="brand"><div class="brand-mark">G</div><div><b>GROVIA</b><small>BUSINESS, MADE CLEAR.</small></div></div>
-  <div><div class="eyebrow" style="color:#d9f36b">THE SMARTER WAY TO RUN RETAIL</div><h1>Know your numbers.<br>Grow with confidence.</h1>
+  <div><div class="eyebrow" style="color:var(--highlight)">THE SMARTER WAY TO RUN RETAIL</div><h1>Know your numbers.<br>Grow with confidence.</h1>
   <p>Sales, stock, credit customers and plain-language business insights in one simple workspace — built for African shops, in English and Kiswahili.</p></div>
   <div style="font-size:11px;color:#90a99a">© ${new Date().getFullYear()} Grovia · Early access</div></section>
   <section class="auth-form"><form class="auth-box" id="authForm"><div class="eyebrow">GROVIA</div>
@@ -169,7 +178,7 @@ function authView(mode = 'login') {
 // First sign-in with a temporary password (set by the provider or the shop owner): choose your own before going further
 function firstPasswordView() {
   $('#root').innerHTML = `<div class="auth"><section class="auth-art"><div class="brand"><div class="brand-mark">G</div><div><b>GROVIA</b><small>BUSINESS, MADE CLEAR.</small></div></div>
-    <div><div class="eyebrow" style="color:#d9f36b">KARIBU</div><h1>Welcome to ${esc(state.business.name)}.</h1><p>One quick step: replace the temporary password you were given with your own. Only you will know it.</p></div><div></div></section>
+    <div><div class="eyebrow" style="color:var(--highlight)">KARIBU</div><h1>Welcome to ${esc(state.business.name)}.</h1><p>One quick step: replace the temporary password you were given with your own. Only you will know it.</p></div><div></div></section>
     <section class="auth-form"><form class="auth-box" id="firstPw"><div class="eyebrow">GROVIA</div><h2>Choose your password</h2>
     <p>Signed in as <b>${esc(state.me.email)}</b>.</p>
     <div class="field"><label>Temporary password</label><input name="current_password" type="password" required autocomplete="current-password"></div>
@@ -212,7 +221,7 @@ function forgotView(email = '') {
   $('#resetBtn').onclick = async () => {
     try {
       const r = await post('/auth/reset', { email: f.email.value, code: f.code.value.trim(), new_password: f.new_password.value });
-      authView(); const m = $('#authError'); m.style.color = '#16734a'; m.dataset.done = '1'; m.textContent = r.message;
+      authView(); const m = $('#authError'); m.style.color = 'var(--accent)'; m.dataset.done = '1'; m.textContent = r.message;
     } catch (err) { $('#forgotMsg').textContent = err.message; }
   };
 }
@@ -226,7 +235,7 @@ async function demoBanner() {
     box.textContent = '⏳ The demo shop is being prepared (1–3 minutes on the free server). Demo login: demo@duka.app / demo-password-123';
     setTimeout(() => { if ($('#authForm')) demoBanner(); }, 8000);
   } else if (h.demo === 'ready' && !box.dataset.done) {
-    box.style.color = '#16734a'; box.dataset.done = '1';
+    box.style.color = 'var(--accent)'; box.dataset.done = '1';
     box.textContent = '✓ Demo ready — sign in with demo@duka.app / demo-password-123';
   }
 }
@@ -320,14 +329,14 @@ function barChart(points, { width = 640, height = 170, fmt = money, label = d =>
   const nice = (() => { const e = Math.pow(10, Math.floor(Math.log10(max))); return Math.ceil(max / e) * e; })();
   const slot = (W - padL) / points.length, bw = Math.max(2, Math.min(34, slot - 2));
   const y = v => padT + (H - padB - padT) * (1 - v / nice);
-  const grid = [0, 0.5, 1].map(t => `<line x1="${padL}" x2="${W}" y1="${y(nice * t)}" y2="${y(nice * t)}" stroke="#e8eee9"/><text x="${padL - 6}" y="${y(nice * t) + 3}" text-anchor="end" font-size="10" fill="#849188">${short(nice * t)}</text>`).join('');
+  const grid = [0, 0.5, 1].map(t => `<line x1="${padL}" x2="${W}" y1="${y(nice * t)}" y2="${y(nice * t)}" style="stroke:var(--line)"/><text x="${padL - 6}" y="${y(nice * t) + 3}" text-anchor="end" font-size="10" fill="#849188">${short(nice * t)}</text>`).join('');
   const every = Math.ceil(points.length / 10);
   const bars = points.map((p, i) => {
     const x = padL + i * slot + (slot - bw) / 2, top = y(p.value), h = Math.max(0, H - padB - top);
     const r = Math.min(4, bw / 2, h);
     const path = h > 0 ? `M${x},${H - padB}V${top + r}Q${x},${top} ${x + r},${top}H${x + bw - r}Q${x + bw},${top} ${x + bw},${top + r}V${H - padB}Z` : '';
     const tip = esc(`${label(p)} · ${fmt(p.value)}${p.extra ? ' · ' + p.extra : ''}`);
-    return `<g data-tip="${tip}"><rect x="${padL + i * slot}" y="${padT}" width="${slot}" height="${H - padB - padT}" fill="transparent"/>${path ? `<path d="${path}" fill="${p.highlight ? '#16734a' : '#70a77d'}"/>` : ''}
+    return `<g data-tip="${tip}"><rect x="${padL + i * slot}" y="${padT}" width="${slot}" height="${H - padB - padT}" fill="transparent"/>${path ? `<path d="${path}" style="fill:${p.highlight ? 'var(--accent)' : 'var(--chart)'}"/>` : ''}
       ${i % every === 0 ? `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" font-size="10" fill="#849188">${esc(p.axis ?? label(p))}</text>` : ''}</g>`;
   }).join('');
   return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bar chart">${grid}${bars}</svg><div class="tip"></div></div>`;
@@ -982,9 +991,13 @@ PAGES.settings = {
     const b = state.business;
     const t = themeChoice();
     return pageHead('Settings', 'Your business profile, receipts and account security.') + `
-      <section class="panel"><div class="panel-head"><div><h3>Appearance</h3><p>Choose how Grovia looks on this device. Dark is easier on the eyes at night and saves battery on many phones.</p></div></div>
-      <div class="theme-pick" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([k, v]) => `<button type="button" role="radio" aria-checked="${t === k}" class="theme-opt ${t === k ? 'active' : ''}" data-choice="${k}" onclick="setTheme('${k}')">
-        <div class="swatch sw-${k}">${k === 'system' ? '' : '<i></i><i></i>'}</div><b>${v}</b></button>`).join('')}</div></section>
+      <section class="panel"><div class="panel-head"><div><h3>Appearance</h3><p>Make Grovia yours. Saved on this device — each phone or computer can have its own look.</p></div></div>
+      <div class="pick-label">Mode</div>
+      <div class="theme-pick" role="radiogroup" aria-label="Mode">${Object.entries(THEMES).map(([k, v]) => `<button type="button" role="radio" aria-checked="${t === k}" class="theme-opt ${t === k ? 'active' : ''}" data-choice="${k}" onclick="setTheme('${k}')">
+        <div class="swatch sw-${k}">${k === 'system' ? '' : '<i></i><i></i>'}</div><b>${v}</b></button>`).join('')}</div>
+      <div class="pick-label" style="margin-top:18px">Colour theme</div>
+      <div class="accent-pick" role="radiogroup" aria-label="Colour theme">${Object.entries(ACCENTS).map(([k, [label, accent, side, hi]]) => `<button type="button" role="radio" aria-checked="${accentChoice() === k}" class="theme-opt accent-opt ${accentChoice() === k ? 'active' : ''}" data-accent-choice="${k}" onclick="setAccent('${k}')">
+        <div class="dots"><i style="background:${side}"></i><i style="background:${accent}"></i><i style="background:${hi}"></i></div><b>${label}</b></button>`).join('')}</div></section>
       <div class="grid-main">
       <section class="panel"><div class="panel-head"><div><h3>Business profile</h3><p>Shown on receipts</p></div></div>
       ${isOwner() ? `<form id="bizForm"><div class="form-grid">

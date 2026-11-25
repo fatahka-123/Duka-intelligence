@@ -305,9 +305,9 @@ PAGES.score = {
   render() { return pageHead('Grovia Score', 'Your business health — and proof of it for lenders, landlords and suppliers.', `<button class="btn" onclick="shareScore()">Share with a lender</button>`) + '<div id="scoreBody"><div class="empty">Calculating…</div></div>'; },
   async after() {
     let s; try { s = await api('/score'); } catch (e) { return toast(e.message); }
-    const ring = (v) => { const r = 54, c = 2 * Math.PI * r; return `<svg viewBox="0 0 140 140" width="150" height="150" role="img" aria-label="Score ${v} of 100"><circle cx="70" cy="70" r="${r}" fill="none" stroke="#244a37" stroke-width="12"/><circle cx="70" cy="70" r="${r}" fill="none" stroke="#d9f36b" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c * v / 100} ${c}" transform="rotate(-90 70 70)"/><text x="70" y="78" text-anchor="middle" font-size="36" font-weight="800" fill="#fff" font-family="Manrope">${v}</text></svg>`; };
+    const ring = (v) => { const r = 54, c = 2 * Math.PI * r; return `<svg viewBox="0 0 140 140" width="150" height="150" role="img" aria-label="Score ${v} of 100"><circle cx="70" cy="70" r="${r}" fill="none" style="stroke:var(--side-2)" stroke-width="12"/><circle cx="70" cy="70" r="${r}" fill="none" style="stroke:var(--highlight)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c * v / 100} ${c}" transform="rotate(-90 70 70)"/><text x="70" y="78" text-anchor="middle" font-size="36" font-weight="800" fill="#fff" font-family="Manrope">${v}</text></svg>`; };
     const pts = s.months.map(m => ({ value: Math.max(0, m.net_profit), label: m.month + (m.partial ? ' (partial)' : ''), axis: m.month.split(' ')[0], extra: `revenue ${money(m.revenue)}` }));
-    $('#scoreBody').innerHTML = `<section class="score-hero">${ring(s.score)}<div><div class="eyebrow" style="color:#d9f36b">GRADE ${s.grade} · ${esc(s.status.toUpperCase())}</div>
+    $('#scoreBody').innerHTML = `<section class="score-hero">${ring(s.score)}<div><div class="eyebrow" style="color:var(--highlight)">GRADE ${s.grade} · ${esc(s.status.toUpperCase())}</div>
       <h2>${s.ready ? (s.score >= 65 ? 'Your records tell a strong story.' : 'Good start — a few habits will lift your score.') : 'Building your track record.'}</h2>
       <p>${s.history_days} days of records · avg monthly revenue ${money(s.average_monthly_revenue)} · avg monthly net profit ${money(s.average_monthly_net_profit)}</p>
       ${s.indicative_loan ? `<div class="loan">Indicative affordable loan: <b>${money(s.indicative_loan)}</b> over 3 months (repayment ≈ ${money(s.indicative_repayment)}/month)</div>` : ''}</div></section>
@@ -555,6 +555,9 @@ async function manageClient(id) {
     <div class="table-wrap"><table><thead><tr><th>LOGIN</th><th>ROLE</th><th>LAST SIGN-IN</th><th></th></tr></thead><tbody>
     ${users.map(u => `<tr><td><b>${esc(u.name)}</b><div class="muted">${esc(u.email)}</div></td><td>${esc(u.role)}${u.active ? '' : ' <span class="badge red">disabled</span>'}</td>
       <td>${u.last_login_at ? fmtDateTime(u.last_login_at) : '—'}</td><td style="text-align:right">${u.id === state.me.id ? '' : `<button class="btn light small" onclick="adminReset(${u.id},${b.id})">Reset password</button>`}</td></tr>`).join('')}</tbody></table></div>
+    <div class="danger-zone"><b>Contract ended?</b><p>1. Download their records to hand over or keep. 2. Pause the shop. 3. Delete it permanently.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn light small" href="/api/admin/businesses/${id}/backup.json">⇩ Download backup</a>
+      ${b.active ? '<span class="muted" style="font-size:11px;align-self:center">Pause the shop to enable deletion</span>' : `<button type="button" class="btn danger small" onclick="deleteClient(${id})">Delete shop permanently…</button>`}</div></div>
     <form id="statusForm"><div class="field" style="margin-top:12px"><label>Private note</label><input name="note" maxlength="200" value="${esc(b.note)}"></div>
     <div class="modal-actions" style="flex-wrap:wrap">${b.active ? `<button type="button" class="btn danger" id="pauseBtn">Pause shop</button>` : `<button type="button" class="btn" id="pauseBtn">Resume shop</button>`}
       <button type="button" class="btn light" onclick="closeModal()">Close</button><button class="btn light" type="submit">Save note</button></div></form>`);
@@ -573,4 +576,19 @@ function confirmStep(sel, label) {  // two-tap confirm without a browser dialog
 async function adminReset(uid, bid) {
   const shop = window._adminRows.find(x => x.id === bid)?.name || '';
   try { const r = await post(`/admin/users/${uid}/reset-password`, {}); loginCard('New temporary password', shop, r); } catch (e) { toast(e.message); }
+}
+
+function deleteClient(id) {
+  const b = window._adminRows.find(x => x.id === id);
+  openModal(`<h2 style="color:var(--red)">Delete ${esc(b.name)}?</h2>
+    <p>This permanently erases the shop and <b>everything</b> in it — ${b.sales_30d} sale(s) this month and all history, products, customers, M-Pesa records and ${b.staff_count} login(s). <b>It cannot be undone.</b> Download a backup first if you or the client may need the records.</p>
+    <form id="delForm"><div class="field"><label>Reason (kept in your activity log)</label><input name="reason" required minlength="3" placeholder="e.g. Contract terminated 25 Nov"></div>
+    <div class="field" style="margin-top:10px"><label>Type the shop name to confirm: <b>${esc(b.name)}</b></label><input name="confirm_name" required autocomplete="off"></div>
+    <div class="modal-actions"><button type="button" class="btn light" onclick="manageClient(${id})">Back</button><button class="btn danger solid" type="submit" id="delGo" disabled>Delete forever</button></div></form>`);
+  const f = $('#delForm'), go = $('#delGo');
+  f.confirm_name.oninput = () => { go.disabled = f.confirm_name.value.trim() !== b.name.trim(); };
+  onSubmit('delForm', async x => {
+    const r = await post(`/admin/businesses/${id}/delete`, x);
+    closeModal(); renderPage(); toast(`${r.deleted.name} deleted permanently`, 5000);
+  });
 }

@@ -102,7 +102,8 @@ or Africa's Talking `AT_USERNAME` + `AT_API_KEY`. Jobs run every minute in-proce
 **Running Duka for clients (provider admin)** — set `PLATFORM_ADMINS` to your own login email (comma-separate several).
 Sign in with that account and an **Admin · all shops** page appears: create a client's shop and owner login (temporary password,
 replaced at first sign-in, sendable on WhatsApp), see usage per shop, pause/resume a shop, and reset logins. Everyone else gets 404
-on the admin API. Admin actions appear in the client's activity log. Tell clients in writing that the provider can manage their account.
+on the admin API. When a contract ends: **Manage → Download backup**, **Pause shop**, then **Delete shop permanently** (type the
+shop's name). Deletion is irreversible; a summary is kept in your own activity log. Admin actions appear in the client's activity log. Tell clients in writing that the provider can manage their account.
 
 ## Tests
 

@@ -226,15 +226,11 @@ def csv_response(filename: str, header: list[str], rows) -> StreamingResponse:
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
-@router.get("/export/backup.json")
-def export_backup(user: User = Depends(require_owner), db: Session = Depends(db_session)):
-    """Everything this shop has recorded, in one file the owner can keep safe (API keys and passwords excluded)."""
-    import json
+def build_backup(db: Session, bid: int) -> dict:
+    """Every record of one shop as plain JSON-ready data (API keys and passwords excluded)."""
     from datetime import datetime
     from decimal import Decimal as D
     from ..db import MpesaTransaction, PurchaseOrder, PurchaseOrderItem, SaleItem, Shift
-
-    bid = user.business_id
 
     def rows(model, *where):
         out = []
@@ -267,11 +263,25 @@ def export_backup(user: User = Depends(require_owner), db: Session = Depends(db_
         "purchase_orders": rows(PurchaseOrder, PurchaseOrder.business_id == bid),
         "purchase_order_items": rows(PurchaseOrderItem, PurchaseOrderItem.order_id.in_(order_ids)),
     }
-    audit(db, user, "export.backup", "business", bid)
-    db.commit()
-    stamp = utcnow().strftime("%Y%m%d")
+    return data
+
+
+def backup_response(data: dict, name: str = "") -> StreamingResponse:
+    import json
+    import re as _re
+    slug = _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40]
+    fname = f"grovia-backup-{slug + '-' if slug else ''}{utcnow():%Y%m%d}.json"
     return StreamingResponse(iter([json.dumps(data, ensure_ascii=False)]), media_type="application/json",
-                             headers={"Content-Disposition": f'attachment; filename="duka-backup-{stamp}.json"'})
+                             headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+@router.get("/export/backup.json")
+def export_backup(user: User = Depends(require_owner), db: Session = Depends(db_session)):
+    """Everything this shop has recorded, in one file the owner can keep safe (API keys and passwords excluded)."""
+    data = build_backup(db, user.business_id)
+    audit(db, user, "export.backup", "business", user.business_id)
+    db.commit()
+    return backup_response(data)
 
 
 @router.get("/export/{kind}.csv")

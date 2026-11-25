@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — colour themes, modern look, deleting client shops
+- **Six colour themes** — Forest, Ocean, Sunset, Royal, Rose, Graphite — each in Light, Dark or *Same as device*
+  (Settings → Appearance, saved per device, applied before first paint). Dark mode is tinted by the chosen theme
+- **Modern design layer**: gradient sidebar with an accent rail, frosted top bar, lead metric card, soft-shadow cards that lift
+  on hover, gradient buttons, larger rounded inputs with focus rings, page/modal/toast motion (off when the device asks for
+  reduced motion), refreshed sign-in page, system-font fallbacks so headings never fall back to a serif
+- **Contract ended → delete a client shop** (provider admin only): download that shop's full backup, pause it, then delete it
+  permanently by typing its exact name and a reason. Every record of the shop is erased; a summary (no customer data)
+  stays in the provider's own activity log. The provider's own shop and other admins' shops can't be deleted
+
 ## 0.5.1 — renamed to Grovia
 - The app is now **Grovia** everywhere users see it: sign-in page, sidebar, browser tab, installed-app name and icon,
   *Ask Grovia*, *Grovia Score*, verified statements, WhatsApp/SMS texts. Internal names (env vars, cookies, saved settings)

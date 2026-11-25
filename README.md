@@ -105,6 +105,11 @@ replaced at first sign-in, sendable on WhatsApp), see usage per shop, pause/resu
 on the admin API. When a contract ends: **Manage → Download backup**, **Pause shop**, then **Delete shop permanently** (type the
 shop's name). Deletion is irreversible; a summary is kept in your own activity log. Admin actions appear in the client's activity log. Tell clients in writing that the provider can manage their account.
 
+**WhatsApp & SMS** — owners connect accounts under **Messaging** (or use the provider's shared account set under
+Admin → Shared messaging). Paste the delivery-report URLs shown there into Meta (WhatsApp → Configuration → Webhook, subscribe to
+*messages*) and Africa's Talking (SMS → Delivery reports) to see delivered/read ticks. Set `PUBLIC_BASE_URL` to your https address
+so those URLs are correct.
+
 ## Tests
 
 ```bash

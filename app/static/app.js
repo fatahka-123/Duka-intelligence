@@ -251,6 +251,7 @@ const NAV = [
   ['suppliers', '⇄', 'Suppliers', 'manager'],
   ['reports', '▥', 'Reports', 'manager'],
   ['assistant', '✳', 'Ask Grovia', 'all'],
+  ['messaging', '✉', 'Messaging', 'manager'],
   ['staff', '☺', 'Staff', 'owner'],
   ['settings', '⚙', 'Settings', 'all'],
   ['admin', '⛭', 'Admin · all shops', 'platform'],
@@ -587,7 +588,8 @@ function showReceipt(s, cashGiven = null) {
   openModal(`<h2>${s.status === 'voided' ? 'Voided sale' : s.duplicate ? 'Sale already recorded' : 'Sale complete ✓'}</h2><p>${esc(s.reference)} · ${money(s.total)}</p>
     ${receiptHTML(s, cashGiven)}
     <div class="modal-actions no-print" style="flex-wrap:wrap">
-      <a class="btn light" target="_blank" rel="noopener" href="${waLink(phone, receiptText(s))}">Share on WhatsApp</a>
+      <button class="btn light" onclick="sendReceiptModal(${s.id},'${esc(phone)}')">Send by SMS / WhatsApp</button>
+      <a class="btn light" target="_blank" rel="noopener" href="${waLink(phone, receiptText(s))}">Share via my WhatsApp</a>
       <button class="btn light" onclick="window.print()">Print</button>
       ${s.balance > 0 && s.status !== 'voided' ? `<button class="btn light" onclick="recordPayment(${s.id},${s.balance})">Add payment</button>` : ''}
       ${isManager() && s.status !== 'voided' && s.items.some(i => i.quantity > 0) ? `<button class="btn light" onclick="returnItems(${s.id})">Return items</button>` : ''}
@@ -809,10 +811,12 @@ function openCustomer(id, fromPOS = false) {
     <div class="field full"><label>Name</label><input name="name" required value="${esc(c.name || '')}"></div>
     <div class="field"><label>Phone</label><input name="phone" value="${esc(c.phone || '')}" placeholder="07XX XXX XXX"></div>
     ${isManager() ? `<div class="field"><label>Credit limit (0 = none)</label><input name="credit_limit" type="number" min="0" step="1" value="${c.credit_limit || 0}"></div>` : ''}
-    <div class="field full"><label>Notes</label><input name="notes" value="${esc(c.notes || '')}" maxlength="240" placeholder="e.g. Pays on Fridays"></div></div>
+    <div class="field full"><label>Notes</label><input name="notes" value="${esc(c.notes || '')}" maxlength="240" placeholder="e.g. Pays on Fridays"></div>
+    <label class="toggle full"><input type="checkbox" name="marketing_opt_out" ${c.marketing_opt_out ? 'checked' : ''}> <span><b>No promotional messages</b><br><span class="muted">Leave them out of broadcasts (receipts and debt reminders still go)</span></span></label></div>
     <div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Save customer</button></div></form>`);
-  onSubmit('custForm', async x => {
+  onSubmit('custForm', async (x, form) => {
     x.credit_limit = Number(x.credit_limit || 0);
+    x.marketing_opt_out = form.querySelector('[name=marketing_opt_out]').checked;
     const saved = await post(id ? `/customers/${id}` : '/customers', x, id ? 'PUT' : 'POST');
     closeModal(); await loadData();
     if (fromPOS) { renderPage(); renderCart(); $('#cartCustomer').value = saved.id; }

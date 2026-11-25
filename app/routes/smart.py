@@ -371,15 +371,15 @@ class AutomationIn(Clean):
     county: str = Field(default="", max_length=60)
 
 
-def automation_out(b: Business) -> dict:
+def automation_out(b: Business, db: Session) -> dict:
     return {"owner_phone": b.owner_phone, "notify_channel": b.notify_channel, "daily_summary": b.daily_summary, "summary_hour": b.summary_hour,
             "debt_reminders": b.debt_reminders, "reminder_after_days": b.reminder_after_days, "price_alerts": b.price_alerts,
-            "benchmark_opt_in": b.benchmark_opt_in, "county": b.county, "providers": automation.provider_status()}
+            "benchmark_opt_in": b.benchmark_opt_in, "county": b.county, "providers": automation.provider_status(db, b)}
 
 
 @router.get("/api/automation/settings")
 def get_automation(user: User = Depends(require_owner), db: Session = Depends(db_session)):
-    return automation_out(biz(db, user))
+    return automation_out(biz(db, user), db)
 
 
 @router.put("/api/automation/settings")
@@ -391,7 +391,7 @@ def put_automation(data: AutomationIn, user: User = Depends(require_owner), db: 
         setattr(b, k, v)
     audit(db, user, "automation.settings", "business", b.id)
     db.commit()
-    return automation_out(b)
+    return automation_out(b, db)
 
 
 @router.get("/api/automation/preview-summary")

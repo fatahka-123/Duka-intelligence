@@ -338,10 +338,10 @@ PAGES.automation = {
     let s, preview, out;
     try { [s, preview, out] = await Promise.all([api('/automation/settings'), api('/automation/preview-summary'), api('/notifications?outbox=true')]); } catch (e) { return toast(e.message); }
     const prov = s.providers.whatsapp || s.providers.sms;
-    $('#autoBody').innerHTML = `${prov ? '' : `<div class="quick-card warn" style="margin-bottom:16px"><b>Demo mode:</b> no WhatsApp/SMS provider is configured on the server, so messages are generated and shown in the outbox below but not delivered. Add WhatsApp Cloud API or Africa's Talking keys to go live.</div>`}
+    $('#autoBody').innerHTML = `${prov ? '' : `<div class="quick-card warn" style="margin-bottom:16px"><b>Not sending yet:</b> no WhatsApp or SMS account is connected, so messages are prepared and shown in the outbox below but not delivered. <button class="link" onclick="go('messaging')">Connect WhatsApp / SMS →</button></div>`}
     <div class="grid-main"><section class="panel"><form id="autoForm">
       <h3 style="font:700 14px Manrope;margin-top:0">Owner updates</h3>
-      <div class="form-grid"><div class="field"><label>Owner's phone</label><input name="owner_phone" value="${esc(s.owner_phone)}" placeholder="07XX XXX XXX"></div>
+      <div class="form-grid"><div class="field"><label>Owner's phone</label><input id="autoOwnerPhone" name="owner_phone" value="${esc(s.owner_phone)}" placeholder="07XX XXX XXX"></div>
       <div class="field"><label>Send via</label><select name="notify_channel"><option value="whatsapp" ${s.notify_channel === 'whatsapp' ? 'selected' : ''}>WhatsApp</option><option value="sms" ${s.notify_channel === 'sms' ? 'selected' : ''}>SMS</option></select></div>
       <label class="toggle full"><input type="checkbox" name="daily_summary" ${s.daily_summary ? 'checked' : ''}> <span><b>Daily summary</b><br><span class="muted">Sales, profit, M-Pesa vs cash, what to restock, debts and fraud flags</span></span></label>
       <div class="field"><label>Send at</label><select name="summary_hour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${s.summary_hour === h ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('')}</select></div></div>
@@ -356,7 +356,8 @@ PAGES.automation = {
     <section class="panel"><div class="panel-head"><div><h3>Tonight's summary</h3><p>Preview of what the owner receives</p></div></div><div class="phone"><div class="bubble">${esc(preview.text).replace(/\*(.+?)\*/g, '<b>$1</b>')}</div></div></section></div>
     <section class="panel"><div class="panel-head"><div><h3>Outbox</h3><p>Every message Grovia sent or prepared</p></div></div><div class="table-wrap"><table><thead><tr><th>WHEN</th><th>TYPE</th><th>TO</th><th>MESSAGE</th><th>STATUS</th></tr></thead><tbody>
       ${out.map(n => `<tr><td>${fmtDateTime(n.created_at)}</td><td>${esc(n.kind.replace('_', ' '))}</td><td>${esc(n.recipient)}<div class="muted">${esc(n.channel)}</div></td><td style="white-space:normal;max-width:420px"><b>${esc(n.title)}</b><div class="muted" style="white-space:pre-wrap">${esc(n.body.slice(0, 220))}${n.body.length > 220 ? '…' : ''}</div></td>
-        <td><span class="badge ${n.status === 'failed' ? 'red' : n.status === 'simulated' ? 'warn' : ''}">${esc(n.status)}</span>${n.error ? `<div class="muted">${esc(n.error)}</div>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nothing sent yet.</td></tr>'}</tbody></table></div></section>`;
+        <td><span class="badge ${n.status === 'failed' ? 'red' : n.status === 'simulated' ? 'warn' : ''}">${{ read: '✓✓ read', delivered: '✓✓ delivered', sent: '✓ sent' }[n.status] || esc(n.status)}</span>${n.error ? `<div class="muted">${esc(n.error)}</div>` : ''}
+          ${['failed', 'simulated'].includes(n.status) ? `<div><button class="link" style="font-size:11px;padding:4px 0 0" onclick="retryMsg(${n.id})">Retry</button></div>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nothing sent yet.</td></tr>'}</tbody></table></div></section>`;
     onSubmit('autoForm', async (x, form) => {
       const body = { ...x, summary_hour: Number(x.summary_hour), reminder_after_days: Number(x.reminder_after_days) };
       for (const k of ['daily_summary', 'debt_reminders', 'price_alerts', 'benchmark_opt_in']) body[k] = form.querySelector(`[name=${k}]`).checked;
@@ -503,7 +504,7 @@ let adminFilter = '';
 PAGES.admin = {
   render() {
     return pageHead('Admin · all shops', 'Your clients: create their shop and login, see who is using Grovia, pause an account or reset a password.',
-      `<button class="btn" onclick="newClient()">＋ New client</button>`) + '<div id="adminBody"><div class="empty">Loading…</div></div>';
+      `<button class="btn light" onclick="sharedMessaging()">✉ Shared messaging</button><button class="btn" onclick="newClient()">＋ New client</button>`) + '<div id="adminBody"><div class="empty">Loading…</div></div>';
   },
   async after() {
     let r; try { r = await api('/admin/businesses'); } catch (e) { $('#adminBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
@@ -592,3 +593,138 @@ function deleteClient(id) {
     closeModal(); renderPage(); toast(`${r.deleted.name} deleted permanently`, 5000);
   });
 }
+
+// ------------------------------------------------------------------ Messaging (WhatsApp Cloud API + Africa's Talking SMS)
+const SOURCE_LABEL = { own: 'Your own accounts', platform: 'Grovia shared account', env: 'Server settings', none: 'Not connected' };
+const okChip = (on, label) => `<span class="badge ${on ? '' : 'red'}" style="font-size:11px;padding:6px 10px">${on ? '✓' : '✕'} ${label}</span>`;
+PAGES.messaging = {
+  render() {
+    return pageHead('Messaging', 'WhatsApp and SMS for receipts, reminders, summaries and offers — sent automatically from Grovia.') + '<div id="msgBody"><div class="empty">Loading…</div></div>';
+  },
+  async after() {
+    let s = null, aud;
+    try { [s, aud] = await Promise.all([isOwner() ? api('/messaging/settings') : Promise.resolve(null), api('/messaging/audience?audience=all')]); }
+    catch (e) { $('#msgBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    const eff = s?.effective;
+    $('#msgBody').innerHTML = `${s ? `<section class="panel msg-hero"><div class="row-flex" style="gap:14px;flex-wrap:wrap;justify-content:space-between">
+        <div><div class="pick-label">Status</div><div style="display:flex;gap:8px;flex-wrap:wrap">${okChip(eff.whatsapp, 'WhatsApp')}${okChip(eff.sms, 'SMS')}
+        <span class="badge" style="font-size:11px;padding:6px 10px;background:var(--accent-wash)">Using: ${esc(SOURCE_LABEL[eff.source])}</span></div>
+        ${!eff.whatsapp && !eff.sms ? '<p class="muted" style="font-size:12px;margin:8px 0 0">Messages are only <b>simulated</b> until an account is connected below.</p>' : ''}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn light" onclick="msgTest()">Test connection</button><button class="btn" onclick="msgTestSend()">Send me a test</button></div></div>
+        <div id="msgTestOut" style="margin-top:10px"></div></section>
+      <div class="grid-main"><section class="panel"><form id="msgForm">
+        <div class="panel-head"><div><h3>Where messages come from</h3><p>Use the shared Grovia account, or connect your own WhatsApp Business and Africa's Talking accounts</p></div></div>
+        <div class="theme-pick" role="radiogroup" aria-label="Message source">${[['platform', 'Shared account', s.platform.available ? `Ready · ${[s.platform.whatsapp && 'WhatsApp', s.platform.sms && 'SMS'].filter(Boolean).join(' + ')}` : (s.platform.allowed ? 'Not set up by your provider yet' : 'Switched off by your provider')],
+          ['own', 'My own accounts', 'Your keys, your sender name, billed to you'], ['off', 'Off', 'Nothing is sent by WhatsApp/SMS']].map(([v, l, d]) =>
+          `<label class="theme-opt ${s.source === v ? 'active' : ''}" style="cursor:pointer"><input type="radio" name="source" value="${v}" ${s.source === v ? 'checked' : ''} style="display:none"><b>${l}</b><div class="muted" style="font-size:11px;margin-top:4px">${d}</div></label>`).join('')}</div>
+        <div class="form-grid" style="margin-top:14px"><div class="field"><label>Send owner updates by</label><select name="notify_channel"><option value="whatsapp" ${s.notify_channel === 'whatsapp' ? 'selected' : ''}>WhatsApp first</option><option value="sms" ${s.notify_channel === 'sms' ? 'selected' : ''}>SMS first</option></select></div>
+          <label class="toggle" style="align-self:end"><input type="checkbox" name="sms_fallback" ${s.sms_fallback ? 'checked' : ''}> <span><b>SMS backup</b><br><span class="muted">If WhatsApp fails, send by SMS</span></span></label></div>
+        <div id="ownKeys" style="${s.source === 'own' ? '' : 'display:none'}">
+          <h3 class="sub-h">WhatsApp Cloud API</h3>
+          <details class="guide"><summary>How to get these (Meta, ~20 min)</summary><ol>
+            <li>Go to <b>developers.facebook.com</b> → My Apps → <b>Create app</b> → type <b>Business</b> → add the <b>WhatsApp</b> product.</li>
+            <li>In <b>WhatsApp → API Setup</b> add and verify your business phone number. Copy its <b>Phone number ID</b>.</li>
+            <li>In <b>Business Settings → System users</b> create a system user, give it the app, and <b>generate a permanent token</b> with <i>whatsapp_business_messaging</i>.</li>
+            <li>For messages to customers who haven't written to you in 24 hours, create a <b>message template</b> with one variable <code>{{1}}</code>, wait for approval, and enter its name below.</li>
+            <li>In <b>WhatsApp → Configuration → Webhook</b> paste the webhook URL and verify token shown below, and subscribe to <b>messages</b> — this gives you delivered/read ticks.</li></ol></details>
+          <div class="form-grid"><div class="field full"><label>Permanent access token</label><input name="wa_token" placeholder="${esc(s.own.wa_token || 'not set')}" autocomplete="off"></div>
+            <div class="field"><label>Phone number ID</label><input name="wa_phone_id" value="${esc(s.own.wa_phone_id)}" inputmode="numeric"></div>
+            <div class="field"><label>App secret (optional, signs webhooks)</label><input name="wa_app_secret" placeholder="${esc(s.own.wa_app_secret || 'not set')}" autocomplete="off"></div>
+            <div class="field"><label>Template name (optional)</label><input name="wa_template" value="${esc(s.own.wa_template)}" placeholder="e.g. grovia_update"></div>
+            <div class="field"><label>Template language</label><input name="wa_template_lang" value="${esc(s.own.wa_template_lang || 'en')}" placeholder="en"></div></div>
+          <h3 class="sub-h">Africa's Talking SMS</h3>
+          <details class="guide"><summary>How to get these (~10 min)</summary><ol>
+            <li>Sign up at <b>account.africastalking.com</b> and create an <b>app</b> (team → app). Note its <b>username</b>.</li>
+            <li>In the app go to <b>Settings → API Key</b> and generate a key. Paste it below.</li>
+            <li>To test free, use username <b>sandbox</b> with the sandbox API key (messages appear in their simulator).</li>
+            <li>Top up airtime for live SMS, and apply for a <b>Sender ID</b> (e.g. UMOJA) so customers see your name.</li>
+            <li>Under <b>SMS → Delivery reports</b> paste the delivery-report URL below to see delivered/failed.</li></ol></details>
+          <div class="form-grid"><div class="field"><label>Username</label><input name="at_username" value="${esc(s.own.at_username)}" placeholder="e.g. umoja or sandbox"></div>
+            <div class="field"><label>Sender ID (optional)</label><input name="at_sender_id" value="${esc(s.own.at_sender_id)}" maxlength="11" placeholder="e.g. UMOJA"></div>
+            <div class="field full"><label>API key</label><input name="at_api_key" placeholder="${esc(s.own.at_api_key || 'not set')}" autocomplete="off"></div></div>
+          ${s.hooks ? `<div class="hook-box"><b>Delivery reports</b><div>WhatsApp webhook URL<code>${esc(s.hooks.whatsapp_webhook)}</code></div><div>WhatsApp verify token<code>${esc(s.hooks.whatsapp_verify_token)}</code></div><div>SMS delivery-report URL<code>${esc(s.hooks.sms_delivery_reports)}</code></div></div>` : '<p class="muted" style="font-size:11px">Save once to get your delivery-report URLs.</p>'}
+          <div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="btn light small" onclick="msgClear('whatsapp')">Remove WhatsApp keys</button><button type="button" class="btn light small" onclick="msgClear('sms')">Remove SMS keys</button></div>
+        </div>
+        <div class="modal-actions"><button class="btn" type="submit">Save</button></div></form></section>` : '<div class="grid-main">'}
+      <section class="panel"><div class="panel-head"><div><h3>Send an offer or notice</h3><p>To a group of customers. People marked “no promotional messages” are left out.</p></div></div>
+        <form id="bcForm"><div class="form-grid"><div class="field"><label>Who</label><select name="audience">${Object.entries(aud.audiences).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></div>
+          <div class="field"><label>Send by</label><select name="channel"><option value="sms">SMS</option><option value="whatsapp">WhatsApp</option></select></div>
+          <div class="field full"><label>Message <span class="muted">— {name} becomes each customer's first name; your shop name is added at the end</span></label><textarea name="message" rows="4" maxlength="600" required placeholder="Habari {name}! Unga 2kg now KSh 175 this week only. Karibu!"></textarea></div></div>
+          <div class="bc-meta"><span id="bcCount">${aud.count} customer(s)${aud.opted_out ? ` · ${aud.opted_out} opted out` : ''}</span><span id="bcParts">0 characters</span></div>
+          <div class="phone" style="min-height:0;margin-top:10px"><div class="bubble" id="bcPreview">Your message preview appears here.</div></div>
+          <div class="modal-actions"><button class="btn" type="submit">Send to <span id="bcN">${aud.count}</span></button></div></form></section></div>`;
+    if (s) {
+      const f = $('#msgForm');
+      $$('#msgForm [name=source]').forEach(r => r.onchange = () => { $$('#msgForm .theme-opt').forEach(l => l.classList.toggle('active', l.querySelector('input').checked)); $('#ownKeys').style.display = f.source.value === 'own' ? '' : 'none'; });
+      onSubmit('msgForm', async x => {
+        const body = { ...x, sms_fallback: f.sms_fallback.checked };
+        for (const k of ['wa_token', 'wa_app_secret', 'at_api_key']) if (!body[k]) delete body[k];
+        await post('/messaging/settings', body, 'PUT'); toast('Messaging saved'); renderPage();
+      });
+    }
+    const bf = $('#bcForm'), first = (state.customers.find(c => c.phone)?.name || 'Amina').split(' ')[0];
+    const sync = () => {
+      const t = bf.message.value, uni = [...t].some(ch => ch.charCodeAt(0) > 127), one = uni ? 70 : 160, many = uni ? 67 : 153;
+      const parts = t.length <= one ? 1 : Math.ceil(t.length / many);
+      $('#bcParts').textContent = `${t.length} characters${bf.channel.value === 'sms' ? ` · ${parts} SMS each${uni ? ' (emoji/unicode)' : ''}` : ''}`;
+      $('#bcPreview').textContent = t ? t.replaceAll('{name}', first) + `\n— ${state.business.name}` : 'Your message preview appears here.';
+    };
+    bf.message.oninput = sync; bf.channel.onchange = sync;
+    bf.audience.onchange = async () => { const a = await api('/messaging/audience?audience=' + bf.audience.value); $('#bcCount').textContent = `${a.count} customer(s)${a.opted_out ? ` · ${a.opted_out} opted out` : ''}`; $('#bcN').textContent = a.count; };
+    onSubmit('bcForm', async x => {
+      const r = await post('/messaging/broadcast', x);
+      toast(r.effective.whatsapp || r.effective.sms ? `Sending to ${r.queued} customer(s) — ${r.sent_now} sent already` : `${r.queued} message(s) simulated — connect an account to really send`, 6000);
+      bf.message.value = ''; sync();
+    });
+  },
+};
+async function msgTest() {
+  const el = $('#msgTestOut'); el.innerHTML = '<span class="muted">Checking…</span>';
+  try {
+    const r = await post('/messaging/test', {});
+    el.innerHTML = ['whatsapp', 'sms'].filter(k => r[k]).map(k => `<div class="quick-card ${r[k].ok ? 'ok' : 'warn'}" style="margin-top:6px">${r[k].ok ? '✓' : '✕'} <b>${k === 'sms' ? 'SMS' : 'WhatsApp'}:</b> ${esc(r[k].detail)}</div>`).join('');
+  } catch (e) { el.innerHTML = `<div class="quick-card warn">✕ ${esc(e.message)}</div>`; }
+}
+function msgTestSend() {
+  openModal(`<h2>Send a test message</h2><p>Check that messages really arrive.</p><form id="tsForm"><div class="form-grid">
+    <div class="field"><label>Phone</label><input name="phone" value="${esc($('#autoOwnerPhone')?.value || '')}" placeholder="07XX XXX XXX" required></div>
+    <div class="field"><label>By</label><select name="channel"><option value="whatsapp">WhatsApp</option><option value="sms">SMS</option></select></div></div>
+    <div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Send test</button></div></form>`);
+  api('/messaging/settings').then(s => { const i = $('#tsForm [name=phone]'); if (i && !i.value) i.value = s.owner_phone || ''; }).catch(() => {});
+  onSubmit('tsForm', async x => { const r = await post('/messaging/test-send', x); closeModal(); toast(r.message + (r.note ? ` (${r.note})` : ''), 6000); });
+}
+async function msgClear(which) { try { await post(`/messaging/clear-keys?which=${which}`, {}); toast('Keys removed'); renderPage(); } catch (e) { toast(e.message); } }
+function sendReceiptModal(id, phone) {
+  openModal(`<h2>Send receipt</h2><p>Grovia sends it from your connected WhatsApp/SMS account.</p><form id="rcForm"><div class="form-grid">
+    <div class="field"><label>Customer phone</label><input name="phone" value="${esc(phone)}" placeholder="07XX XXX XXX" required></div>
+    <div class="field"><label>By</label><select name="channel"><option value="whatsapp">WhatsApp</option><option value="sms">SMS</option></select></div></div>
+    <div class="modal-actions"><button type="button" class="btn light" onclick="showSale(${id})">Back</button><button class="btn" type="submit">Send</button></div></form>`);
+  onSubmit('rcForm', async x => { const r = await post(`/sales/${id}/send-receipt`, x); showSale(id); toast(r.status === 'simulated' ? 'Simulated — connect WhatsApp/SMS under Messaging to really send' : `Receipt sent by ${r.channel.toUpperCase()} to ${r.to}`, 5000); });
+}
+async function retryMsg(id) { try { const r = await post(`/notifications/${id}/retry`, {}); toast(r.status === 'failed' ? `Still failing: ${r.error}` : `Status: ${r.status}`); renderPage(); } catch (e) { toast(e.message); } }
+
+// Admin: the provider's shared WhatsApp/SMS account
+async function sharedMessaging() {
+  let s; try { s = await api('/admin/messaging'); } catch (e) { return toast(e.message); }
+  const v = s.values;
+  openModal(`<h2>Shared messaging account</h2><p>Your WhatsApp Business and Africa's Talking accounts, used by every client shop set to “Shared account”. Keys are encrypted.</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px">${okChip(s.whatsapp, 'WhatsApp')}${okChip(s.sms, 'SMS')}</div>
+    <form id="pmForm"><div class="form-grid">
+      <div class="field full"><label>WhatsApp permanent token</label><input name="wa_token" placeholder="${esc(v.wa_token || 'not set')}" autocomplete="off"></div>
+      <div class="field"><label>Phone number ID</label><input name="wa_phone_id" value="${esc(v.wa_phone_id)}"></div><div class="field"><label>App secret</label><input name="wa_app_secret" placeholder="${esc(v.wa_app_secret || 'not set')}" autocomplete="off"></div>
+      <div class="field"><label>Template name</label><input name="wa_template" value="${esc(v.wa_template)}"></div><div class="field"><label>Template language</label><input name="wa_template_lang" value="${esc(v.wa_template_lang || 'en')}"></div>
+      <div class="field"><label>Africa's Talking username</label><input name="at_username" value="${esc(v.at_username)}"></div><div class="field"><label>Sender ID</label><input name="at_sender_id" value="${esc(v.at_sender_id)}" maxlength="11"></div>
+      <div class="field full"><label>Africa's Talking API key</label><input name="at_api_key" placeholder="${esc(v.at_api_key || 'not set')}" autocomplete="off"></div></div>
+      <div class="hook-box"><b>Delivery reports for the shared account</b><div>WhatsApp webhook<code>${esc(s.hooks.whatsapp_webhook)}</code></div><div>Verify token<code>${esc(s.hooks.whatsapp_verify_token)}</code></div><div>SMS delivery reports<code>${esc(s.hooks.sms_delivery_reports)}</code></div></div>
+      <div id="pmTest"></div>
+      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>SHOP</th><th>USES</th><th>SMS 30D</th><th>WHATSAPP 30D</th><th>SHARED ACCOUNT</th></tr></thead><tbody>
+      ${s.shops.map(x => `<tr><td><b>${esc(x.name)}</b></td><td>${esc({ platform: 'Shared', own: 'Own keys', off: 'Off' }[x.source] || x.source)}</td><td>${x.sms}</td><td>${x.whatsapp}</td>
+        <td><label class="toggle" style="padding:0"><input type="checkbox" ${x.allowed ? 'checked' : ''} onchange="allowShared(${x.id},this.checked)"> <span>${x.allowed ? 'Allowed' : 'Off'}</span></label></td></tr>`).join('')}</tbody></table></div>
+      <div class="modal-actions"><button type="button" class="btn light" id="pmTestBtn">Test connection</button><button type="button" class="btn light" onclick="closeModal()">Close</button><button class="btn" type="submit">Save</button></div></form>`);
+  $('#pmTestBtn').onclick = async () => {
+    try { const r = await post('/admin/messaging/test', {}); $('#pmTest').innerHTML = ['whatsapp', 'sms'].filter(k => r[k]).map(k => `<div class="quick-card ${r[k].ok ? 'ok' : 'warn'}">${r[k].ok ? '✓' : '✕'} <b>${k === 'sms' ? 'SMS' : 'WhatsApp'}:</b> ${esc(r[k].detail)}</div>`).join(''); }
+    catch (e) { $('#pmTest').innerHTML = `<div class="quick-card warn">✕ ${esc(e.message)}</div>`; }
+  };
+  onSubmit('pmForm', async x => { for (const k of ['wa_token', 'wa_app_secret', 'at_api_key']) if (!x[k]) delete x[k]; await post('/admin/messaging', x, 'PUT'); toast('Shared account saved'); sharedMessaging(); });
+}
+async function allowShared(id, on) { try { await post(`/admin/businesses/${id}/messaging`, { allowed: on }); toast(on ? 'Shared messaging allowed' : 'Shared messaging switched off for that shop'); } catch (e) { toast(e.message); } }

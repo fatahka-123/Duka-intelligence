@@ -214,8 +214,10 @@ def forgot_password(data: ForgotIn, request: Request, db: Session = Depends(db_s
     generic = {"ok": True, "message": "If that account has a phone number on file, a 6-digit code is on its way by SMS/WhatsApp. "
                                       "Staff can also ask the shop owner to set a new password under Staff."}
     user = db.scalar(select(User).where(User.email == data.email.lower().strip(), User.active.is_(True)))
-    providers = automation.provider_status()
-    if not (providers["sms"] or providers["whatsapp"]):
+    from .. import messaging
+    b = db.get(Business, user.business_id) if user else None
+    creds = messaging.resolve(db, b) if user else messaging.resolve(db, None)
+    if not (creds.whatsapp or creds.sms):
         generic["message"] = ("Password reset by SMS isn't switched on for this server yet. Staff: ask the shop owner to set a new "
                               "password under Staff. Owners: ask whoever runs the server to run  python -m app.reset_password")
         return generic
@@ -227,7 +229,7 @@ def forgot_password(data: ForgotIn, request: Request, db: Session = Depends(db_s
     db.commit()
     body = f"Grovia: your password reset code is {code}. It expires in {RESET_MINUTES} minutes. If you didn't ask for this, ignore it."
     try:
-        (automation.send_sms if providers["sms"] else automation.send_whatsapp)(phone, body)
+        messaging.send(db, b, phone, body, prefer="sms", creds=creds)
     except Exception:  # noqa: BLE001 — never reveal delivery details to an anonymous caller
         logging.getLogger("duka").exception("password reset delivery failed")
     return generic

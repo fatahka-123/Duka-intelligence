@@ -77,6 +77,19 @@ class Business(Base):
     mpesa_consumer_secret: Mapped[str] = mapped_column(Text, default="", server_default="")
     mpesa_passkey: Mapped[str] = mapped_column(Text, default="", server_default="")
     mpesa_callback_token: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    # --- messaging (v0.7). msg_source: platform = use the provider's shared account | own = this shop's keys | off
+    msg_source: Mapped[str] = mapped_column(String(10), default="platform", server_default="platform")
+    platform_messaging: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())  # admin may revoke
+    sms_fallback: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    wa_token: Mapped[str] = mapped_column(Text, default="", server_default="")  # encrypted
+    wa_phone_id: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    wa_template: Mapped[str] = mapped_column(String(80), default="", server_default="")
+    wa_template_lang: Mapped[str] = mapped_column(String(10), default="en", server_default="en")
+    wa_app_secret: Mapped[str] = mapped_column(Text, default="", server_default="")  # encrypted; verifies webhook signatures
+    at_username: Mapped[str] = mapped_column(String(80), default="", server_default="")
+    at_api_key: Mapped[str] = mapped_column(Text, default="", server_default="")  # encrypted
+    at_sender_id: Mapped[str] = mapped_column(String(20), default="", server_default="")
+    msg_hook_token: Mapped[str] = mapped_column(String(64), default="", server_default="")
     # --- platform admin: a paused shop cannot sign in (data is kept)
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     admin_note: Mapped[str] = mapped_column(String(240), default="", server_default="")
@@ -132,6 +145,7 @@ class Customer(Base):
     notes: Mapped[str] = mapped_column(String(240), default="", server_default="")
     credit_limit: Mapped[Decimal] = mapped_column(Money, default=0, server_default="0")
     reminders_sent: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    marketing_opt_out: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # no broadcasts
     last_reminded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -298,6 +312,9 @@ class Notification(Base):
     customer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("customers.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    provider_ref: Mapped[Optional[str]] = mapped_column(String(160), nullable=True, index=True)  # WhatsApp wamid / AT messageId
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    source: Mapped[str] = mapped_column(String(10), default="", server_default="")  # own | platform | env
 
 
 class PurchaseOrder(Base):
@@ -325,3 +342,11 @@ class PurchaseOrderItem(Base):
     quantity: Mapped[int] = mapped_column(Integer)
     unit_cost: Mapped[Decimal] = mapped_column(Money, default=0)
     received_qty: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+class PlatformSetting(Base):
+    """Provider-wide settings (e.g. the shared WhatsApp / SMS account). Secret values are stored encrypted."""
+    __tablename__ = "platform_settings"
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

@@ -30,63 +30,42 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import analytics
+from . import analytics, messaging
 from .db import Business, Customer, Notification, Payment, Sale, SessionLocal, utcnow
 from .mpesa import mask_phone, normalize_phone, stale_unverified_codes
 
 log = logging.getLogger("duka.automation")
 
 
-# ---------------------------------------------------------------- providers
-def provider_status() -> dict:
-    return {
-        "whatsapp": bool(os.getenv("WHATSAPP_TOKEN") and os.getenv("WHATSAPP_PHONE_NUMBER_ID")),
-        "sms": bool(os.getenv("AT_USERNAME") and os.getenv("AT_API_KEY")),
-    }
+# ---------------------------------------------------------------- providers (see messaging.py for where keys come from)
+def provider_status(db: Session | None = None, b: Business | None = None) -> dict:
+    if db is None:
+        c = messaging._creds_from(messaging.env_values(), "env")
+        return {"whatsapp": c.whatsapp, "sms": c.sms, "source": "env" if (c.whatsapp or c.sms) else "none"}
+    return messaging.resolve(db, b).status()
 
 
-def send_whatsapp(to: str, body: str) -> None:
-    url = f"https://graph.facebook.com/v21.0/{os.environ['WHATSAPP_PHONE_NUMBER_ID']}/messages"
-    template = os.getenv("WHATSAPP_TEMPLATE")
-    payload = {"messaging_product": "whatsapp", "to": to}
-    if template:
-        payload |= {"type": "template", "template": {"name": template, "language": {"code": os.getenv("WHATSAPP_TEMPLATE_LANG", "en")},
-                                                     "components": [{"type": "body", "parameters": [{"type": "text", "text": body[:1000]}]}]}}
-    else:
-        payload |= {"type": "text", "text": {"body": body[:4000]}}
-    r = httpx.post(url, json=payload, headers={"Authorization": f"Bearer {os.environ['WHATSAPP_TOKEN']}"}, timeout=15)
-    if r.status_code >= 300:
-        raise RuntimeError(f"WhatsApp {r.status_code}: {r.text[:150]}")
+def send_whatsapp(to: str, body: str) -> None:  # kept for callers/tests that send with server env keys
+    messaging.send_whatsapp(messaging._creds_from(messaging.env_values(), "env"), to, body)
 
 
 def send_sms(to: str, body: str) -> None:
-    username = os.environ["AT_USERNAME"]
-    base = "https://api.sandbox.africastalking.com" if username == "sandbox" else "https://api.africastalking.com"
-    data = {"username": username, "to": "+" + to, "message": body[:900]}
-    if os.getenv("AT_SENDER_ID"):
-        data["from"] = os.environ["AT_SENDER_ID"]
-    r = httpx.post(f"{base}/version1/messaging", data=data, headers={"apiKey": os.environ["AT_API_KEY"], "Accept": "application/json"}, timeout=15)
-    if r.status_code >= 300:
-        raise RuntimeError(f"SMS {r.status_code}: {r.text[:150]}")
+    messaging.send_sms(messaging._creds_from(messaging.env_values(), "env"), to, body)
 
 
-def deliver(n: Notification) -> str:
-    """Returns final status. Raises on provider failure."""
+def deliver(db: Session, n: Notification) -> str:
+    """Send one outbox row. Returns the final status; raises on provider failure."""
     if n.channel == "inapp":
         return "sent"
-    to = normalize_phone(n.recipient)
-    if not to:
-        raise RuntimeError("No valid phone number")
-    avail = provider_status()
-    channel = n.channel if avail.get(n.channel) else ("sms" if avail["sms"] else ("whatsapp" if avail["whatsapp"] else None))
-    if channel is None:
-        return "simulated"
-    (send_whatsapp if channel == "whatsapp" else send_sms)(to, n.body)
-    n.channel = channel
-    return "sent"
+    b = db.get(Business, n.business_id)
+    r = messaging.send(db, b, n.recipient, n.body, prefer=n.channel if n.channel in ("whatsapp", "sms") else (b.notify_channel if b else "whatsapp"))
+    n.channel, n.provider_ref, n.source = r["channel"], r["ref"] or None, r["source"]
+    if r["fallback"]:
+        n.error = "WhatsApp failed — sent by SMS instead"
+    return r["status"]
 
 
-def dispatch(db: Session, limit: int = 50) -> int:
+def dispatch(db: Session, limit: int = 200) -> int:
     sent = 0
     ids = list(db.scalars(select(Notification.id).where(Notification.status == "queued").order_by(Notification.id).limit(limit)))
     for nid in ids:
@@ -96,7 +75,7 @@ def dispatch(db: Session, limit: int = 50) -> int:
         db.commit()
         n = db.get(Notification, nid)
         try:
-            n.status = deliver(n)
+            n.status = deliver(db, n)
             n.sent_at = utcnow()
             sent += 1
         except Exception as e:  # noqa: BLE001 — record any provider failure on the row

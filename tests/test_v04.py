@@ -99,7 +99,7 @@ def test_password_reset_by_sms_code(client, owner, monkeypatch):
     client.put("/api/automation/settings", json={"owner_phone": "0712000111"})
     monkeypatch.setenv("AT_USERNAME", "sandbox"); monkeypatch.setenv("AT_API_KEY", "k")
     sent = {}
-    with mock.patch("app.automation.send_sms", side_effect=lambda to, body: sent.update(to=to, body=body)):
+    with mock.patch("app.messaging.send_sms", side_effect=lambda c, to, body: sent.update(to=to, body=body) or "ATXid_1"):
         anon = new_client()
         assert anon.post("/api/auth/forgot", json={"email": owner["email"]}).status_code == 200
         assert anon.post("/api/auth/forgot", json={"email": "nobody@example.com"}).status_code == 200  # no account leak
@@ -118,7 +118,7 @@ def test_reset_code_locks_after_five_wrong_tries(client, owner, monkeypatch):
     client.put("/api/automation/settings", json={"owner_phone": "0712000222"})
     monkeypatch.setenv("AT_USERNAME", "sandbox"); monkeypatch.setenv("AT_API_KEY", "k")
     sent = {}
-    with mock.patch("app.automation.send_sms", side_effect=lambda to, body: sent.update(body=body)):
+    with mock.patch("app.messaging.send_sms", side_effect=lambda c, to, body: sent.update(body=body) or "ATXid_1"):
         client.post("/api/auth/forgot", json={"email": owner["email"]})
     code = sent["body"].split("code is ")[1][:6]
     wrong = "000000" if code != "000000" else "111111"

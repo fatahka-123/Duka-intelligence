@@ -381,3 +381,12 @@ tbody tr{transition:background .12s}
 
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 .btn.danger.solid{background:var(--red);color:#fff;box-shadow:0 4px 14px color-mix(in srgb,var(--red) 30%,transparent)}.btn.danger.solid:hover{filter:brightness(.92)}
+/* v0.7 messaging */
+.sub-h{font:700 13px Manrope,system-ui,sans-serif;margin:18px 0 8px}
+.guide{font-size:12px;margin:0 0 10px;background:var(--accent-wash);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.guide summary{cursor:pointer;font-weight:700;color:var(--accent-ink)}.guide ol{padding-left:18px;line-height:1.65;margin:8px 0 2px}
+.hook-box{margin-top:12px;font-size:11px;background:var(--accent-wash);border:1px dashed var(--accent-line);border-radius:10px;padding:10px 12px;display:grid;gap:6px}
+.hook-box code{display:block;word-break:break-all;background:var(--white);border:1px solid var(--line);border-radius:6px;padding:5px 7px;margin-top:2px;font-size:10.5px}
+textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:13px;resize:vertical;background:var(--white);color:var(--ink)}
+.bc-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px}
+.msg-hero{background:linear-gradient(135deg,var(--white),var(--accent-wash))}

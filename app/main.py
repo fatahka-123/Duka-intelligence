@@ -18,7 +18,7 @@ from sqlalchemy import text
 from .config import DEMO_STATE, AUTO_CREATE_TABLES, COOKIE_SECURE, ENABLE_SCHEDULER, SEED_DEMO, SEED_DEMO_DAYS, VERSION, assert_safe_for_production
 from .db import Base, engine
 from .automation import scheduler_loop
-from .routes import admin, auth, business, inventory, purchasing, sales, smart
+from .routes import admin, auth, business, inventory, messaging, purchasing, sales, smart
 
 BASE = Path(__file__).resolve().parent
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -113,7 +113,7 @@ async def friendly_validation(_: Request, exc: RequestValidationError):
     return JSONResponse({"detail": "; ".join(messages[:3]), "errors": jsonable_encoder(exc.errors(), custom_encoder={Exception: str})}, status_code=422)
 
 
-for module in (auth, inventory, sales, business, smart, purchasing, admin):
+for module in (auth, inventory, sales, business, smart, purchasing, admin, messaging):
     app.include_router(module.router)
 
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")

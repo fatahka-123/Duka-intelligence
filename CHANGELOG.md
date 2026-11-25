@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0 — WhatsApp & SMS built in
+- **Messaging page**: connect WhatsApp Cloud API and Africa's Talking from inside the app (keys encrypted), with step-by-step
+  guides, *Test connection* (shows the SMS balance and the verified WhatsApp number) and *Send me a test*
+- **Shared account for client shops**: the provider sets one WhatsApp/SMS account under Admin → Shared messaging; each shop uses it,
+  its own keys, or turns messaging off. The provider can switch the shared account off per shop and sees SMS/WhatsApp usage per shop.
+  Server environment variables still work as a last fallback
+- **Automatic SMS backup** when a WhatsApp message fails (e.g. outside the 24-hour window without a template)
+- **Delivery tracking**: WhatsApp webhooks (signed with the app secret when set) and Africa's Talking delivery reports mark messages
+  delivered / read / failed; each shop's webhook can only update that shop's messages. *Retry* for failed or simulated messages
+- **Broadcasts**: send an offer or notice to all customers, debtors, inactive (30+ days) or recent customers, with {name}
+  personalisation, live preview, SMS segment counter, and a per-customer "no promotional messages" opt-out
+- **Send receipts by SMS/WhatsApp** straight from Grovia (the old "share via my WhatsApp" link remains)
+
 ## 0.6.0 — colour themes, modern look, deleting client shops
 - **Six colour themes** — Forest, Ocean, Sunset, Royal, Rose, Graphite — each in Light, Dark or *Same as device*
   (Settings → Appearance, saved per device, applied before first paint). Dark mode is tinted by the chosen theme

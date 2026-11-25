@@ -162,6 +162,7 @@ class CustomerIn(Clean):
     phone: str = Field(default="", max_length=40)
     notes: str = Field(default="", max_length=240)
     credit_limit: Decimal = Field(default=Decimal("0"), ge=0)
+    marketing_opt_out: bool = False
 
 
 class SupplierIn(Clean):
@@ -210,7 +211,8 @@ def sale_out(s: Sale, customer_name: str | None = None, cashier: str | None = No
 
 
 def customer_out(c: Customer, balance=0) -> dict:
-    return {"id": c.id, "name": c.name, "phone": c.phone, "notes": c.notes, "credit_limit": f(c.credit_limit), "balance": f(balance)}
+    return {"id": c.id, "name": c.name, "phone": c.phone, "notes": c.notes, "credit_limit": f(c.credit_limit), "balance": f(balance),
+            "marketing_opt_out": bool(c.marketing_opt_out)}
 
 
 def supplier_out(s: Supplier) -> dict:

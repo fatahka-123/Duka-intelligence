@@ -14,7 +14,7 @@ from ..db import AuditLog, Business, User, db_session, utcnow
 from ..schemas import BusinessIn, ForgotIn, LoginIn, ResetIn, PasswordChangeIn, RegisterIn, StaffIn, StaffUpdateIn, user_out
 from ..security import (
     audit, clear_session_cookie, client_ip, current_user, dummy_verify, hash_password, login_throttle,
-    ip_throttle, needs_rehash, require_owner, set_session_cookie, verify_password,
+    PAUSED_MESSAGE, ip_throttle, is_platform_admin, needs_rehash, require_owner, set_session_cookie, verify_password,
 )
 
 router = APIRouter(prefix="/api")
@@ -27,7 +27,8 @@ def business_out(b: Business) -> dict:
 
 
 def session_payload(user: User, business: Business) -> dict:
-    return {"user": user_out(user), "business": business_out(business)}
+    return {"user": {**user_out(user), "platform_admin": is_platform_admin(user), "must_change_password": bool(user.must_change_password)},
+            "business": business_out(business)}
 
 
 @router.post("/auth/register")
@@ -69,6 +70,9 @@ def login(data: LoginIn, request: Request, response: Response, db: Session = Dep
         ip_throttle.fail(ip_key)
         raise HTTPException(401, "Email or password is incorrect")
     login_throttle.reset(email_key)
+    business = db.get(Business, user.business_id)
+    if not business.active and not is_platform_admin(user):
+        raise HTTPException(403, PAUSED_MESSAGE)
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(data.password)
     user.last_login_at = utcnow()
@@ -102,7 +106,10 @@ def me(user: User = Depends(current_user), db: Session = Depends(db_session)):
 def change_password(data: PasswordChangeIn, response: Response, user: User = Depends(current_user), db: Session = Depends(db_session)):
     if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(400, "Current password is incorrect")
+    if verify_password(data.new_password, user.password_hash):
+        raise HTTPException(400, "Choose a new password that is different from the current one")
     user.password_hash = hash_password(data.new_password)
+    user.must_change_password = False
     user.token_version = (user.token_version or 0) + 1  # sign out other devices
     audit(db, user, "auth.password_change", "user", user.id)
     db.commit()
@@ -138,7 +145,7 @@ def add_staff(data: StaffIn, user: User = Depends(require_owner), db: Session = 
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(409, "An account with this email already exists")
     staff = User(business_id=user.business_id, name=data.name, email=email, password_hash=hash_password(data.password), role=data.role,
-                 phone=data.phone)
+                 phone=data.phone, must_change_password=True)
     db.add(staff)
     db.flush()
     audit(db, user, "staff.add", "user", staff.id, f"role={data.role}")
@@ -165,6 +172,7 @@ def update_staff(uid: int, data: StaffUpdateIn, user: User = Depends(require_own
         changes.append("phone")
     if data.password:
         staff.password_hash = hash_password(data.password)
+        staff.must_change_password = True
         changes.append("password reset")
     staff.token_version = (staff.token_version or 0) + 1  # force re-login with new permissions
     audit(db, user, "staff.update", "user", staff.id, ", ".join(changes))

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 — provider admin & client onboarding
+- **Admin · all shops** page for the people listed in `PLATFORM_ADMINS` (invisible — 404 — to everyone else): every client shop
+  with owner, staff count, 30-day sales, last activity and M-Pesa mode; search; totals across shops
+- **New client**: creates a separate shop and owner login with a readable temporary password, shown once, with Copy and
+  *Send on WhatsApp* (website, email and password in one message)
+- **Pause / resume a shop**: paused shops can't sign in and open sessions stop working at once; data is kept. Private notes per shop
+- **Reset any login** to a new temporary password (signs that person out everywhere)
+- **Temporary passwords must be replaced at first sign-in** — for client owners, staff added by an owner, and admin resets;
+  the new password must differ from the old one
+- Every admin action is written to that shop's activity log, marked "by provider"
+
 ## 0.4.1 — dark mode
 - **Appearance setting** (Settings → Appearance): Light, Dark or *Same as device*. Saved per device, applied before the page
   paints (no white flash), follows the phone's setting live in *Same as device*; receipts stay paper-white for printing

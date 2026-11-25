@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 
 DEV_SECRET_PREFIX = "dev-only-change-this"
 
@@ -55,4 +55,7 @@ MPESA_ENFORCE_IPS = os.getenv("MPESA_ENFORCE_IPS", "false").lower() == "true"
 # Create the demo shop (demo@duka.app) on first start when the database has no users. For demos only.
 SEED_DEMO = os.getenv("SEED_DEMO", "false").lower() == "true"
 SEED_DEMO_DAYS = int(os.getenv("SEED_DEMO_DAYS", "90"))
-DEMO_STATE = {"state": "off"}  # off | seeding | ready | failed — status of the optional demo seed
+DEMO_STATE = {"state": "off"}
+
+# --- v0.5: platform admins (you, the provider). Comma-separated emails; they get the Admin page to manage every client shop.
+PLATFORM_ADMINS = {e.strip().lower() for e in os.getenv("PLATFORM_ADMINS", "").split(",") if e.strip()}  # off | seeding | ready | failed — status of the optional demo seed

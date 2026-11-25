@@ -18,6 +18,8 @@ services:
         value: "true"
       - key: ENVIRONMENT
         value: production
+      - key: PLATFORM_ADMINS    # your own login email(s), comma-separated — gives you the Admin · all shops page
+        sync: false
       - key: SEED_DEMO          # creates demo@duka.app / demo-password-123 with sample data; set to "false" for real use
         value: "true"
 databases:

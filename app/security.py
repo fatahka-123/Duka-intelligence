@@ -15,9 +15,9 @@ from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from .config import (
-    COOKIE_SECURE, LOGIN_MAX_FAILURES, LOGIN_WINDOW_SECONDS, SECRET_KEY, SESSION_DAYS,
+    COOKIE_SECURE, LOGIN_MAX_FAILURES, LOGIN_WINDOW_SECONDS, PLATFORM_ADMINS, SECRET_KEY, SESSION_DAYS,
 )
-from .db import AuditLog, User, db_session
+from .db import AuditLog, Business, User, db_session
 
 PBKDF2_ITERATIONS = 600_000  # OWASP 2023+ guidance for PBKDF2-HMAC-SHA256
 LEGACY_ITERATIONS = 240_000  # v0.1 hashes; upgraded transparently on next login
@@ -109,9 +109,26 @@ def current_user(request: Request, db: Session = Depends(db_session)) -> User:
         if (not user or not user.active or user.business_id != int(payload["bid"])
                 or int(payload.get("tv", 0)) != (user.token_version or 0)):
             raise ValueError("revoked")
-        return user
     except Exception:
         raise HTTPException(401, "Session expired. Please sign in again.")
+    if not is_platform_admin(user):
+        b = db.get(Business, user.business_id)
+        if b is not None and not b.active:
+            raise HTTPException(403, PAUSED_MESSAGE)
+    return user
+
+
+PAUSED_MESSAGE = "This shop's account is paused. Please contact your Duka provider."
+
+
+def is_platform_admin(user: User) -> bool:
+    return bool(user) and user.active and user.email.lower() in PLATFORM_ADMINS
+
+
+def require_platform_admin(user: User = Depends(current_user)) -> User:
+    if not is_platform_admin(user):
+        raise HTTPException(404, "Not found")  # don't advertise that the admin area exists
+    return user
 
 
 def require_roles(*roles: str) -> Callable[..., User]:

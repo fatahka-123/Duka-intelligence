@@ -77,6 +77,9 @@ class Business(Base):
     mpesa_consumer_secret: Mapped[str] = mapped_column(Text, default="", server_default="")
     mpesa_passkey: Mapped[str] = mapped_column(Text, default="", server_default="")
     mpesa_callback_token: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    # --- platform admin: a paused shop cannot sign in (data is kept)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    admin_note: Mapped[str] = mapped_column(String(240), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -97,6 +100,7 @@ class User(Base):
     reset_code_hash: Mapped[str] = mapped_column(String(256), default="", server_default="")
     reset_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     reset_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

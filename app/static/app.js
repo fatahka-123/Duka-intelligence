@@ -166,6 +166,30 @@ function authView(mode = 'login') {
   };
 }
 
+// First sign-in with a temporary password (set by the provider or the shop owner): choose your own before going further
+function firstPasswordView() {
+  $('#root').innerHTML = `<div class="auth"><section class="auth-art"><div class="brand"><div class="brand-mark">D</div><div><b>DUKA INTELLIGENCE</b><small>BUSINESS, MADE CLEAR.</small></div></div>
+    <div><div class="eyebrow" style="color:#d9f36b">KARIBU</div><h1>Welcome to ${esc(state.business.name)}.</h1><p>One quick step: replace the temporary password you were given with your own. Only you will know it.</p></div><div></div></section>
+    <section class="auth-form"><form class="auth-box" id="firstPw"><div class="eyebrow">DUKA INTELLIGENCE</div><h2>Choose your password</h2>
+    <p>Signed in as <b>${esc(state.me.email)}</b>.</p>
+    <div class="field"><label>Temporary password</label><input name="current_password" type="password" required autocomplete="current-password"></div>
+    <div class="field"><label>New password</label><input name="new_password" type="password" required minlength="10" autocomplete="new-password" placeholder="At least 10 characters"></div>
+    <div class="field"><label>Repeat new password</label><input name="repeat" type="password" required minlength="10" autocomplete="new-password"></div>
+    <button class="btn" style="width:100%;padding:13px" type="submit">Save and continue →</button>
+    <div class="auth-toggle"><button class="link" type="button" onclick="logout()">Sign out</button></div>
+    <div id="authError" role="alert" style="color:#c74646;font-size:11px;margin-top:12px"></div></form></section></div>`;
+  $('#firstPw').onsubmit = async e => {
+    e.preventDefault(); const x = Object.fromEntries(new FormData(e.target)), btn = e.target.querySelector('button[type=submit]');
+    if (x.new_password !== x.repeat) { $('#authError').textContent = 'The new passwords do not match'; return; }
+    btn.disabled = true;
+    try {
+      await post('/auth/password', { current_password: x.current_password, new_password: x.new_password });
+      const d = await api('/auth/me'); state.me = d.user; store.set('duka_session_hint', d);
+      await loadApp(); toast('Password saved — welcome!');
+    } catch (err) { $('#authError').textContent = err.message; btn.disabled = false; }
+  };
+}
+
 function forgotView(email = '') {
   const box = $('.auth-form');
   box.innerHTML = `<form class="auth-box" id="forgotForm"><div class="eyebrow">DUKA INTELLIGENCE</div><h2>Reset your password</h2>
@@ -220,8 +244,9 @@ const NAV = [
   ['assistant', '✳', 'Ask Duka', 'all'],
   ['staff', '☺', 'Staff', 'owner'],
   ['settings', '⚙', 'Settings', 'all'],
+  ['admin', '⛭', 'Admin · all shops', 'platform'],
 ];
-const allowed = ([, , , who]) => who === 'all' || (who === 'manager' && isManager()) || (who === 'owner' && isOwner());
+const allowed = ([, , , who]) => who === 'all' || (who === 'manager' && isManager()) || (who === 'owner' && isOwner()) || (who === 'platform' && !!state.me?.platform_admin);
 
 function appShell() {
   const initials = state.me.name.split(' ').map(x => x[0]).slice(0, 2).join('').toUpperCase();
@@ -238,6 +263,7 @@ function appShell() {
 }
 
 async function loadApp() {
+  if (state.me?.must_change_password) return firstPasswordView();
   appShell();
   if (!location.hash) location.hash = state.page;
   await loadData();

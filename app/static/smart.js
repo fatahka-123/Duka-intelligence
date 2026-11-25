@@ -497,3 +497,80 @@ async function cancelPO(id) { try { await post(`/purchase-orders/${id}/cancel`, 
 const _supRender = PAGES.suppliers.render, _supAfter = PAGES.suppliers.after;
 PAGES.suppliers.render = function () { return _supRender.call(this) + '<div id="poList"></div>'; };
 PAGES.suppliers.after = async function () { if (_supAfter) await _supAfter.call(this); renderPurchaseOrders(); };
+
+// ------------------------------------------------------------------ Platform admin (the provider's view of every client shop)
+let adminFilter = '';
+PAGES.admin = {
+  render() {
+    return pageHead('Admin · all shops', 'Your clients: create their shop and login, see who is using Duka, pause an account or reset a password.',
+      `<button class="btn" onclick="newClient()">＋ New client</button>`) + '<div id="adminBody"><div class="empty">Loading…</div></div>';
+  },
+  async after() {
+    let r; try { r = await api('/admin/businesses'); } catch (e) { $('#adminBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    window._adminRows = r.businesses;
+    const s = r.summary;
+    $('#adminBody').innerHTML = `<div class="cards">${stat('Client shops', s.shops, '▦', `${s.active} active · ${s.shops - s.active} paused`)}
+      ${stat('Used this week', s.used_this_week, '↗', 'Signed in or sold in the last 7 days')}${stat('Sales (30 days)', s.sales_30d.toLocaleString(), '▣', 'Across all shops')}
+      ${stat('Revenue (30 days)', money(s.revenue_30d), '◈', 'Across all shops')}</div>
+      <section class="panel"><div class="toolbar"><input class="search" id="adminSearch" placeholder="Search shop, owner or email" value="${esc(adminFilter)}"></div>
+      <div class="table-wrap"><table><thead><tr><th>SHOP</th><th>OWNER</th><th>STAFF</th><th>SALES 30D</th><th>LAST ACTIVE</th><th>M-PESA</th><th>STATUS</th><th></th></tr></thead><tbody id="adminRows"></tbody></table></div></section>
+      <p class="footer-note">Only the emails in the server's PLATFORM_ADMINS setting can see this page. Every action here is written to that shop's activity log.</p>`;
+    const search = $('#adminSearch'); search.oninput = () => { adminFilter = search.value; drawAdminRows(); }; drawAdminRows();
+  },
+};
+function drawAdminRows() {
+  const q = adminFilter.toLowerCase(), el = $('#adminRows'); if (!el) return;
+  const rows = window._adminRows.filter(b => !q || [b.name, b.owner?.name, b.owner?.email, b.phone].join(' ').toLowerCase().includes(q));
+  el.innerHTML = rows.map(b => `<tr><td><b>${esc(b.name)}</b><div class="muted">${esc(b.phone || '')}${b.county ? ' · ' + esc(b.county) : ''} · since ${fmtDate(b.created_at)}</div>${b.note ? `<div class="muted" style="white-space:normal;max-width:240px">${esc(b.note)}</div>` : ''}</td>
+    <td>${b.owner ? `${esc(b.owner.name)}<div class="muted">${esc(b.owner.email)}</div>${b.owner.must_change_password ? '<span class="badge warn">Hasn’t set own password</span>' : ''}` : '—'}</td>
+    <td>${b.staff_count}</td><td>${b.sales_30d}<div class="muted">${money(b.revenue_30d)}</div></td>
+    <td>${b.last_activity ? fmtDateTime(b.last_activity) : '<span class="muted">Never</span>'}</td><td>${esc(b.mpesa_mode)}</td>
+    <td><span class="badge ${b.active ? '' : 'red'}">${b.active ? 'Active' : 'Paused'}</span></td>
+    <td style="text-align:right"><button class="btn light small" onclick="manageClient(${b.id})">Manage</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">No shops match.</td></tr>';
+}
+function loginCard(title, shop, login) {
+  const url = location.origin;
+  const msg = `Habari! Your Duka Intelligence account for ${shop} is ready.\n\nOpen: ${url}\nEmail: ${login.email}\nTemporary password: ${login.temporary_password}\n\nYou'll be asked to choose your own password the first time you sign in.`;
+  openModal(`<h2>${title}</h2><p>Give these details to the client. The temporary password is shown <b>only now</b> — they must replace it at first sign-in.</p>
+    <div class="quick-card ok" style="font-size:13px;line-height:1.8"><div>Website: <b>${esc(url)}</b></div><div>Email: <b>${esc(login.email)}</b></div><div>Temporary password: <b style="font-family:ui-monospace,monospace;font-size:15px">${esc(login.temporary_password)}</b></div></div>
+    <div class="modal-actions" style="flex-wrap:wrap"><button class="btn light" id="copyLogin">Copy</button><a class="btn light" target="_blank" rel="noopener" href="${waLink(window._clientPhone || '', msg)}">Send on WhatsApp</a><button class="btn" onclick="closeModal();renderPage()">Done</button></div>`);
+  $('#copyLogin').onclick = () => { navigator.clipboard?.writeText(msg); toast('Copied'); };
+}
+function newClient() {
+  openModal(`<h2>New client</h2><p>Creates their own shop — completely separate from every other shop — and an owner login with a temporary password.</p>
+    <form id="clientForm"><div class="form-grid"><div class="field full"><label>Shop name</label><input name="business_name" required minlength="2" placeholder="e.g. Baraka Mini Mart"></div>
+    <div class="field"><label>Owner's name</label><input name="owner_name" required minlength="2"></div><div class="field"><label>Owner's phone</label><input name="phone" placeholder="07XX XXX XXX"></div>
+    <div class="field full"><label>Owner's email (their login)</label><input name="email" type="email" required></div>
+    <div class="field"><label>County</label><input name="county" list="counties2"><datalist id="counties2">${['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Kiambu', 'Machakos', 'Uasin Gishu', 'Kakamega', 'Nyeri', 'Meru', 'Kisii', 'Kajiado'].map(c => `<option value="${c}">`).join('')}</datalist></div>
+    <div class="field"><label>Private note (only you see it)</label><input name="note" maxlength="200" placeholder="e.g. Paid 3 months"></div></div>
+    <div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Create shop & login</button></div></form>`);
+  onSubmit('clientForm', async x => { const r = await post('/admin/businesses', x); window._clientPhone = x.phone; loginCard('Client account ready ✓', r.business.name, r.login); });
+}
+async function manageClient(id) {
+  const b = window._adminRows.find(x => x.id === id); let users = [];
+  try { users = await api(`/admin/businesses/${id}/users`); } catch (e) { return toast(e.message); }
+  window._clientPhone = b.phone;
+  openModal(`<h2>${esc(b.name)}</h2><p>${b.active ? 'Active' : '<b style="color:var(--red)">Paused</b> — nobody at this shop can sign in. Their data is kept.'} · since ${fmtDate(b.created_at)}</p>
+    <div class="cards" style="grid-template-columns:repeat(3,1fr)">${stat('Sales 30d', b.sales_30d, '▣', money(b.revenue_30d))}${stat('Products', b.products, '▤', '')}${stat('Logins', b.staff_count, '☺', '')}</div>
+    <div class="table-wrap"><table><thead><tr><th>LOGIN</th><th>ROLE</th><th>LAST SIGN-IN</th><th></th></tr></thead><tbody>
+    ${users.map(u => `<tr><td><b>${esc(u.name)}</b><div class="muted">${esc(u.email)}</div></td><td>${esc(u.role)}${u.active ? '' : ' <span class="badge red">disabled</span>'}</td>
+      <td>${u.last_login_at ? fmtDateTime(u.last_login_at) : '—'}</td><td style="text-align:right">${u.id === state.me.id ? '' : `<button class="btn light small" onclick="adminReset(${u.id},${b.id})">Reset password</button>`}</td></tr>`).join('')}</tbody></table></div>
+    <form id="statusForm"><div class="field" style="margin-top:12px"><label>Private note</label><input name="note" maxlength="200" value="${esc(b.note)}"></div>
+    <div class="modal-actions" style="flex-wrap:wrap">${b.active ? `<button type="button" class="btn danger" id="pauseBtn">Pause shop</button>` : `<button type="button" class="btn" id="pauseBtn">Resume shop</button>`}
+      <button type="button" class="btn light" onclick="closeModal()">Close</button><button class="btn light" type="submit">Save note</button></div></form>`);
+  onSubmit('statusForm', async x => { await post(`/admin/businesses/${id}/status`, { active: b.active, note: x.note }); toast('Saved'); closeModal(); renderPage(); });
+  $('#pauseBtn').onclick = async () => {
+    if (b.active && !confirmStep('#pauseBtn', 'Tap again to pause — they will be signed out')) return;
+    try { await post(`/admin/businesses/${id}/status`, { active: !b.active, note: $('#statusForm [name=note]').value }); toast(b.active ? 'Shop paused' : 'Shop resumed'); closeModal(); renderPage(); }
+    catch (e) { toast(e.message); }
+  };
+}
+function confirmStep(sel, label) {  // two-tap confirm without a browser dialog
+  const btn = $(sel); if (btn.dataset.armed) return true;
+  btn.dataset.armed = '1'; btn.textContent = label; setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = 'Pause shop'; } }, 5000);
+  return false;
+}
+async function adminReset(uid, bid) {
+  const shop = window._adminRows.find(x => x.id === bid)?.name || '';
+  try { const r = await post(`/admin/users/${uid}/reset-password`, {}); loginCard('New temporary password', shop, r); } catch (e) { toast(e.message); }
+}

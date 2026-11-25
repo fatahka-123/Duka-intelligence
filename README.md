@@ -99,6 +99,11 @@ or Africa's Talking `AT_USERNAME` + `AT_API_KEY`. Jobs run every minute in-proce
 6-digit code by SMS/WhatsApp to the owner/business phone (needs a provider, see Automation). Server admins can always run
 `python -m app.reset_password owner@example.com` (Render → Shell).
 
+**Running Duka for clients (provider admin)** — set `PLATFORM_ADMINS` to your own login email (comma-separate several).
+Sign in with that account and an **Admin · all shops** page appears: create a client's shop and owner login (temporary password,
+replaced at first sign-in, sendable on WhatsApp), see usage per shop, pause/resume a shop, and reset logins. Everyone else gets 404
+on the admin API. Admin actions appear in the client's activity log. Tell clients in writing that the provider can manage their account.
+
 ## Tests
 
 ```bash

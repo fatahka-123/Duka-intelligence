@@ -202,7 +202,7 @@ async function closeShiftModal() {
       <div class="kv"><span>Opening float</span><b>${money(r.opening_float)}</b></div><div class="kv"><span>+ Cash sales</span><b>${money(r.cash_sales)}</b></div>
       <div class="kv"><span>− Removed / banked</span><b>${money(r.cash_removed)}</b></div><div class="kv"><span>= Expected</span><b>${money(r.expected_cash)}</b></div>
       <div class="kv"><span>Counted</span><b>${money(r.counted_cash)}</b></div>
-      <div class="change-due" style="margin-top:10px;background:${ok ? '#eaf6ec' : '#fff0f0'}"><span>Difference</span><b>${v >= 0 ? '+' : ''}${money(v)}</b></div>
+      <div class="change-due ${ok ? '' : 'bad'}" style="margin-top:10px"><span>Difference</span><b>${v >= 0 ? '+' : ''}${money(v)}</b></div>
       <div class="kv"><span>M-Pesa this shift</span><b>${money(r.mpesa)}</b></div><div class="modal-actions"><button class="btn" onclick="closeModal()">Done</button></div>`);
     loadShift();
   });

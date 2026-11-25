@@ -1,6 +1,6 @@
 /* Duka service worker: app shell available offline. API calls are never cached. */
-const CACHE = 'duka-shell-v0.4.0';
-const SHELL = ['/', '/static/app.js?v=0.4.0', '/static/smart.js?v=0.4.0', '/static/styles.css?v=0.4.0', '/static/manifest.webmanifest', '/static/icon.svg'];
+const CACHE = 'duka-shell-v0.4.1';
+const SHELL = ['/', '/static/app.js?v=0.4.1', '/static/smart.js?v=0.4.1', '/static/styles.css?v=0.4.1', '/static/manifest.webmanifest', '/static/icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

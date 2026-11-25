@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 — dark mode
+- **Appearance setting** (Settings → Appearance): Light, Dark or *Same as device*. Saved per device, applied before the page
+  paints (no white flash), follows the phone's setting live in *Same as device*; receipts stay paper-white for printing
+
 ## 0.4.0 — returns, purchase orders and real M-Pesa setup
 
 ### Added

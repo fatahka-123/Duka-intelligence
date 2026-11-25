@@ -29,6 +29,22 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
 };
 
+// ------------------------------------------------------------------ theme (light / dark / follow the phone)
+const THEMES = { light: 'Light', dark: 'Dark', system: 'Same as device' };
+const themeChoice = () => store.get('duka_theme', 'light');
+function applyTheme(choice = themeChoice()) {
+  const dark = choice === 'dark' || (choice === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  $('meta[name=theme-color]')?.setAttribute('content', dark ? '#08110d' : '#10251d');
+}
+function setTheme(choice) {
+  store.set('duka_theme', choice); applyTheme(choice);
+  $$('.theme-opt').forEach(b => { b.classList.toggle('active', b.dataset.choice === choice); b.setAttribute('aria-checked', b.dataset.choice === choice); });
+  toast(`Theme: ${THEMES[choice]}`);
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (themeChoice() === 'system') applyTheme(); });
+applyTheme();
+
 class NetworkError extends Error {}
 
 async function api(path, opts = {}) {
@@ -156,7 +172,7 @@ function forgotView(email = '') {
     <p>We'll send a 6-digit code to the phone number on your account.</p>
     <div class="field"><label>Email address</label><input name="email" type="email" required value="${esc(email)}" autocomplete="email"></div>
     <button class="btn" style="width:100%;padding:13px" type="submit">Send code →</button>
-    <div id="forgotMsg" role="status" style="font-size:12px;margin-top:12px;color:#38543f"></div>
+    <div id="forgotMsg" role="status" class="muted" style="font-size:12px;margin-top:12px"></div>
     <div id="resetStep" style="display:none;margin-top:12px">
       <div class="field"><label>6-digit code</label><input name="code" inputmode="numeric" maxlength="6" pattern="\\d{6}" autocomplete="one-time-code"></div>
       <div class="field"><label>New password</label><input name="new_password" type="password" minlength="10" autocomplete="new-password" placeholder="At least 10 characters"></div>
@@ -469,7 +485,7 @@ function renderCart() {
   let html = '';
   if (tender !== null && cart.lines.length) {
     if (method === 'cash' && tender > total) html = `<div class="change-due"><span>Change to give</span><b>${money(tender - total)}</b></div>`;
-    else if (tender < total) html = `<div class="change-due" style="background:#fff5e6"><span>Balance on credit</span><b>${money(total - tender)}</b></div>`;
+    else if (tender < total) html = `<div class="change-due warn"><span>Balance on credit</span><b>${money(total - tender)}</b></div>`;
   }
   $('#changeDue').innerHTML = html;
 }
@@ -773,7 +789,7 @@ async function showStatement(id) {
   try {
     const s = await api(`/customers/${id}/statement`), c = s.customer;
     openModal(`<h2>${esc(c.name)}</h2><p>${esc(c.phone || 'No phone')} · ${s.visits} purchase(s) · lifetime ${money(s.lifetime_spend)}${s.last_visit ? ` · last ${fmtDate(s.last_visit)}` : ''}</p>
-      <div class="change-due" style="background:${c.balance > 0 ? '#fff5e6' : '#eaf6ec'}"><span>Balance owed</span><b>${money(c.balance)}</b></div>
+      <div class="change-due ${c.balance > 0 ? 'warn' : ''}"><span>Balance owed</span><b>${money(c.balance)}</b></div>
       <div class="table-wrap"><table><thead><tr><th>DATE</th><th>REF</th><th>TOTAL</th><th>BALANCE</th><th></th></tr></thead><tbody>
       ${s.sales.map(x => `<tr><td>${fmtDate(x.created_at)}</td><td>${esc(x.reference)}</td><td>${money(x.total)}</td><td>${x.balance > 0 && x.status === 'completed' ? money(x.balance) : payBadge(x)}</td>
         <td>${x.balance > 0 && x.status === 'completed' ? `<button class="btn light small" onclick="recordPayment(${x.id},${x.balance})">Pay</button>` : `<button class="btn light small" onclick="showSale(${x.id})">View</button>`}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No purchases yet.</td></tr>'}</tbody></table></div>
@@ -938,7 +954,12 @@ function editStaff(id, role, active, phone = '') {
 PAGES.settings = {
   render() {
     const b = state.business;
-    return pageHead('Settings', 'Your business profile, receipts and account security.') + `<div class="grid-main">
+    const t = themeChoice();
+    return pageHead('Settings', 'Your business profile, receipts and account security.') + `
+      <section class="panel"><div class="panel-head"><div><h3>Appearance</h3><p>Choose how Duka looks on this device. Dark is easier on the eyes at night and saves battery on many phones.</p></div></div>
+      <div class="theme-pick" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([k, v]) => `<button type="button" role="radio" aria-checked="${t === k}" class="theme-opt ${t === k ? 'active' : ''}" data-choice="${k}" onclick="setTheme('${k}')">
+        <div class="swatch sw-${k}">${k === 'system' ? '' : '<i></i><i></i>'}</div><b>${v}</b></button>`).join('')}</div></section>
+      <div class="grid-main">
       <section class="panel"><div class="panel-head"><div><h3>Business profile</h3><p>Shown on receipts</p></div></div>
       ${isOwner() ? `<form id="bizForm"><div class="form-grid">
         <div class="field full"><label>Business name</label><input name="name" required value="${esc(b.name)}"></div>

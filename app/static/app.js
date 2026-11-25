@@ -133,8 +133,10 @@ function authView(mode = 'login') {
   ${reg ? '<p style="font-size:10px;color:#77857c">Use a unique password. Your data is isolated from other businesses.</p>' : '<p style="font-size:10px;color:#77857c">Staff accounts are created by the shop owner under Staff.</p>'}
   <button class="btn" style="width:100%;padding:13px" type="submit">${reg ? 'Create business account' : 'Sign in'} →</button>
   <div class="auth-toggle">${reg ? 'Already have an account?' : 'New to Duka?'} <button class="link" type="button" id="switchAuth">${reg ? 'Sign in' : 'Create an account'}</button></div>
+  ${reg ? '' : '<div class="auth-toggle" style="margin-top:6px"><button class="link" type="button" id="forgotLink">Forgot password?</button></div>'}
   <div id="authError" role="alert" style="color:#c74646;font-size:11px;margin-top:12px"></div></form></section></div>`;
   $('#switchAuth').onclick = () => authView(reg ? 'login' : 'register');
+  if ($('#forgotLink')) $('#forgotLink').onclick = () => forgotView($('#authForm [name=email]').value);
   demoBanner();
   $('#authForm').onsubmit = async e => {
     e.preventDefault();
@@ -145,6 +147,33 @@ function authView(mode = 'login') {
       store.set('duka_session_hint', d);
       await loadApp();
     } catch (err) { const box = $('#authError'); box.style.color = '#c74646'; box.dataset.done = '1'; box.textContent = err.message; btn.disabled = false; }
+  };
+}
+
+function forgotView(email = '') {
+  const box = $('.auth-form');
+  box.innerHTML = `<form class="auth-box" id="forgotForm"><div class="eyebrow">DUKA INTELLIGENCE</div><h2>Reset your password</h2>
+    <p>We'll send a 6-digit code to the phone number on your account.</p>
+    <div class="field"><label>Email address</label><input name="email" type="email" required value="${esc(email)}" autocomplete="email"></div>
+    <button class="btn" style="width:100%;padding:13px" type="submit">Send code →</button>
+    <div id="forgotMsg" role="status" style="font-size:12px;margin-top:12px;color:#38543f"></div>
+    <div id="resetStep" style="display:none;margin-top:12px">
+      <div class="field"><label>6-digit code</label><input name="code" inputmode="numeric" maxlength="6" pattern="\\d{6}" autocomplete="one-time-code"></div>
+      <div class="field"><label>New password</label><input name="new_password" type="password" minlength="10" autocomplete="new-password" placeholder="At least 10 characters"></div>
+      <button class="btn" style="width:100%;padding:13px" type="button" id="resetBtn">Set new password</button></div>
+    <div class="auth-toggle"><button class="link" type="button" onclick="authView()">← Back to sign in</button></div></form>`;
+  const f = $('#forgotForm');
+  f.onsubmit = async e => {
+    e.preventDefault(); const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+    try { const r = await post('/auth/forgot', { email: f.email.value }); $('#forgotMsg').textContent = r.message; $('#resetStep').style.display = ''; }
+    catch (err) { $('#forgotMsg').textContent = err.message; }
+    finally { btn.disabled = false; }
+  };
+  $('#resetBtn').onclick = async () => {
+    try {
+      const r = await post('/auth/reset', { email: f.email.value, code: f.code.value.trim(), new_password: f.new_password.value });
+      authView(); const m = $('#authError'); m.style.color = '#16734a'; m.dataset.done = '1'; m.textContent = r.message;
+    } catch (err) { $('#forgotMsg').textContent = err.message; }
   };
 }
 
@@ -430,6 +459,8 @@ function renderCart() {
   $('#mobileCart').classList.toggle('show', count > 0);
   $('#refField').style.display = method === 'mpesa' ? '' : 'none';
   $('#stkBox').style.display = method === 'mpesa' && typeof mpesaOn === 'function' && mpesaOn() ? '' : 'none';
+  const stkLabel = $('#stkBox label');
+  if (stkLabel) stkLabel.textContent = state.business?.mpesa_mode === 'simulator' ? "Send M-Pesa prompt (SIMULATOR — no real phone prompt)" : "Send M-Pesa prompt to customer's phone";
   const cust = state.customers.find(c => c.id === Number($('#cartCustomer').value));
   if (cust?.phone && !$('#stkPhone').value) $('#stkPhone').value = cust.phone;
   $('#tenderLabel').textContent = method === 'cash' ? 'Cash received' : method === 'credit' ? 'Deposit paid now' : 'Amount paid';
@@ -477,17 +508,18 @@ function receiptHTML(s, cashGiven) {
   const row = (l, r, bold) => `<div class="r"${bold ? ' style="font-weight:700"' : ''}><span>${l}</span><span>${r}</span></div>`;
   return `<div class="receipt-paper print-area"><div class="c"><b style="font-size:14px">${esc(b.name)}</b>${b.address ? `<br>${esc(b.address)}` : ''}${b.phone ? `<br>Tel ${esc(b.phone)}` : ''}${b.kra_pin ? `<br>PIN ${esc(b.kra_pin)}` : ''}</div><hr>
     ${row('Receipt', esc(s.reference))}${row('Date', fmtDateTime(s.created_at))}${s.cashier ? row('Served by', esc(s.cashier)) : ''}${s.customer_name ? row('Customer', esc(s.customer_name)) : ''}<hr>
-    ${s.items.map(i => `<div>${esc(i.name)}</div>${row(`&nbsp;&nbsp;${i.quantity} × ${Number(i.unit_price).toFixed(2)}`, Number(i.line_total).toFixed(2))}`).join('')}<hr>
+    ${s.items.filter(i => i.quantity > 0).map(i => `<div>${esc(i.name)}</div>${row(`&nbsp;&nbsp;${i.quantity} × ${Number(i.unit_price).toFixed(2)}`, Number(i.line_total).toFixed(2))}`).join('')}<hr>
     ${row('Subtotal', money(s.subtotal))}${s.discount ? row('Discount', '− ' + money(s.discount)) : ''}${row('TOTAL', money(s.total), true)}
-    ${s.payments.map(p => row(`Paid (${METHODS[p.method] || esc(p.method)}${p.ref ? ' ' + esc(p.ref) : ''})`, money(p.amount))).join('')}
+    ${s.payments.map(p => p.amount < 0 ? row(`Refund (${METHODS[p.method] || esc(p.method)})`, '− ' + money(-p.amount)) : row(`Paid (${METHODS[p.method] || esc(p.method)}${p.ref ? ' ' + esc(p.ref) : ''})`, money(p.amount))).join('')}
     ${cashGiven ? row('Cash given', money(cashGiven)) + row('Change', money(cashGiven - s.paid)) : ''}
+    ${(s.returns || []).length ? `<hr><div><b>Returned</b></div>${s.returns.map(r => `<div class="muted" style="font-size:10px">${fmtDateTime(r.created_at)} · ${r.quantity || ''} ${esc(r.note.replace(/^Return [^:]+: /, ''))}${r.restocked ? '' : ' (not restocked)'}</div>`).join('')}` : ''}
     ${s.balance > 0 ? row('BALANCE DUE', money(s.balance), true) : ''}${s.status === 'voided' ? `<hr><div class="c"><b>*** VOIDED ***</b><br>${esc(s.void_reason || '')}</div>` : ''}
     <hr><div class="c">${esc(b.receipt_footer || 'Asante! Karibu tena.')}</div><div class="c muted" style="font-size:10px;margin-top:6px">Not a tax invoice</div></div>`;
 }
 function receiptText(s) {
   const b = state.business;
   const lines = [`*${b.name}*`, `Receipt ${s.reference} · ${fmtDateTime(s.created_at)}`, '',
-    ...s.items.map(i => `${i.quantity} × ${i.name} — ${money(i.line_total)}`), '',
+    ...s.items.filter(i => i.quantity > 0).map(i => `${i.quantity} × ${i.name} — ${money(i.line_total)}`), '',
     ...(s.discount ? [`Discount: −${money(s.discount)}`] : []), `*Total: ${money(s.total)}*`, `Paid: ${money(s.paid)}`,
     ...(s.balance > 0 ? [`*Balance due: ${money(s.balance)}*`] : []), '', b.receipt_footer || 'Asante! Karibu tena.'];
   return lines.join('\n');
@@ -507,6 +539,7 @@ function showReceipt(s, cashGiven = null) {
       <a class="btn light" target="_blank" rel="noopener" href="${waLink(phone, receiptText(s))}">Share on WhatsApp</a>
       <button class="btn light" onclick="window.print()">Print</button>
       ${s.balance > 0 && s.status !== 'voided' ? `<button class="btn light" onclick="recordPayment(${s.id},${s.balance})">Add payment</button>` : ''}
+      ${isManager() && s.status !== 'voided' && s.items.some(i => i.quantity > 0) ? `<button class="btn light" onclick="returnItems(${s.id})">Return items</button>` : ''}
       ${isManager() && s.status !== 'voided' ? `<button class="btn danger" onclick="voidSale(${s.id})">Void</button>` : ''}
       <button class="btn" onclick="closeModal();${state.page === 'pos' ? "$('#scanInput')?.focus()" : ''}">${state.page === 'pos' ? 'Next sale' : 'Close'}</button></div>`);
 }
@@ -521,6 +554,24 @@ function recordPayment(id, balance) {
   onSubmit('paymentForm', async x => {
     const s = await post(`/sales/${id}/payment`, { ...x, amount: Number(x.amount), payment_ref: (x.payment_ref || '').toUpperCase() });
     await loadData(); renderPage(); toast('Payment recorded'); showReceipt(s);
+  });
+}
+function returnItems(id) {
+  const s = window._lastSale; if (!s || s.id !== id) return showSale(id);
+  const lines = s.items.filter(i => i.quantity > 0);
+  openModal(`<h2>Return items</h2><p>${esc(s.reference)} · choose how many of each item came back. The sale and reports are reduced, and any money already paid above the new total is refunded.</p>
+    <form id="returnForm">${lines.map(i => `<div class="kv"><span>${esc(i.name)} <span class="muted">(${i.quantity} sold · ${money(i.unit_price)} each)</span></span>
+      <input name="q_${i.product_id}" type="number" min="0" max="${i.quantity}" value="0" style="width:80px"></div>`).join('')}
+    <div class="form-grid" style="margin-top:12px"><div class="field full"><label>Reason</label><input name="reason" required minlength="3" placeholder="e.g. Customer changed mind / expired"></div>
+    <div class="field"><label>Refund by</label><select name="refund_method">${['cash', 'mpesa', 'bank', 'card', 'other'].map(m => `<option value="${m}">${METHODS[m]}</option>`).join('')}</select></div>
+    <label class="toggle"><input type="checkbox" name="restock" checked> <span><b>Put back in stock</b><br><span class="muted">Untick for damaged or expired goods</span></span></label></div>
+    <div class="modal-actions"><button type="button" class="btn light" onclick="showSale(${id})">Back</button><button class="btn" type="submit">Record return</button></div></form>`);
+  onSubmit('returnForm', async (x, form) => {
+    const items = lines.map(i => ({ product_id: i.product_id, quantity: Math.floor(Number(x['q_' + i.product_id] || 0)) })).filter(i => i.quantity > 0);
+    if (!items.length) return toast('Enter how many items came back');
+    const r = await post(`/sales/${id}/return`, { items, reason: x.reason, refund_method: x.refund_method, restock: form.querySelector('[name=restock]').checked });
+    await loadData(); renderPage(); showReceipt(r);
+    toast(r.refund > 0 ? `Return recorded. Give the customer ${money(r.refund)} back (${METHODS[x.refund_method]}).` : 'Return recorded — the balance owed went down', 6000);
   });
 }
 function voidSale(id) {
@@ -552,7 +603,7 @@ PAGES.products = {
     const s = inventorySummary, el = $('#invSummary'); if (!el) return;
     el.innerHTML = `<div class="cards">${stat('Stock value at cost', money(s.cost_value), '▤', `${s.units.toLocaleString()} units on hand`)}${stat('Stock value at price', money(s.retail_value), '↗', `${money(s.potential_profit)} potential profit`)}
       ${stat('Need restocking', s.restock.length, '△', s.restock.length ? `≈ ${money(s.restock.reduce((a, r) => a + r.estimated_cost, 0))} to restock` : 'Nothing urgent')}${stat('Slow movers', s.dead_stock.length, '◌', s.dead_stock.length ? `${money(s.dead_stock.reduce((a, r) => a + r.capital_tied, 0))} tied up` : 'All stock is moving')}</div>
-      ${s.restock.length ? `<section class="panel"><div class="panel-head"><div><h3>Smart restock plan</h3><p>Based on the last 4 weeks of sales — enough to cover about 2 weeks</p></div><button class="btn light small" onclick="shareRestock()">Send to supplier (WhatsApp)</button></div>
+      ${s.restock.length ? `<section class="panel"><div class="panel-head"><div><h3>Smart restock plan</h3><p>Based on the last 4 weeks of sales — enough to cover about 2 weeks</p></div><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn light small" onclick="shareRestock()">Send to supplier (WhatsApp)</button><button class="btn small" onclick="go('suppliers');setTimeout(()=>newPO(true),300)">Create purchase order</button></span></div>
       <div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>IN STOCK</th><th>SELLS / DAY</th><th>RUNS OUT IN</th><th>SUGGESTED ORDER</th><th>EST. COST</th><th></th></tr></thead><tbody>
       ${s.restock.map(r => `<tr><td><b>${esc(r.name)}</b></td><td>${r.stock_qty}</td><td>${r.daily_sales || '—'}</td><td>${r.stock_qty <= 0 ? '<span class="badge red">Out now</span>' : r.days_left !== null ? `<span class="badge ${r.days_left <= 3 ? 'red' : 'warn'}">~${Math.round(r.days_left)} days</span>` : '—'}</td><td><b>${r.suggested_order}</b></td><td>${money(r.estimated_cost)}</td><td><button class="btn light small" onclick="openStock(${r.product_id},${r.suggested_order})">Receive</button></td></tr>`).join('')}</tbody></table></div></section>` : ''}`;
   },
@@ -858,7 +909,7 @@ PAGES.staff = {
       const [staff, log] = await Promise.all([api('/staff'), api('/audit?limit=60')]);
       $('#staffRows').innerHTML = `<div class="table-wrap"><table><thead><tr><th>NAME</th><th>EMAIL</th><th>ROLE</th><th>LAST SIGN-IN</th><th>STATUS</th><th></th></tr></thead><tbody>
         ${staff.map(u => `<tr><td><b>${esc(u.name)}</b></td><td>${esc(u.email)}</td><td>${esc(u.role)}</td><td>${u.last_login_at ? fmtDateTime(u.last_login_at) : '—'}</td><td><span class="badge ${u.active ? '' : 'red'}">${u.active ? 'Active' : 'Disabled'}</span></td>
-        <td style="text-align:right">${u.role === 'owner' ? '' : `<button class="btn light small" onclick="editStaff(${u.id},'${u.role}',${u.active})">Manage</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+        <td style="text-align:right">${u.role === 'owner' ? '' : `<button class="btn light small" onclick="editStaff(${u.id},'${u.role}',${u.active},'${esc(u.phone)}')">Manage</button>`}</td></tr>`).join('')}</tbody></table></div>`;
       $('#auditRows').innerHTML = log.length ? `<div class="table-wrap"><table><thead><tr><th>WHEN</th><th>WHO</th><th>ACTION</th><th>DETAIL</th></tr></thead><tbody>
         ${log.map(a => `<tr><td>${fmtDateTime(a.created_at)}</td><td>${esc(a.user)}</td><td>${esc(a.action)}</td><td style="white-space:normal">${esc(a.detail)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">No activity yet.</div>';
     } catch (e) { toast(e.message); }
@@ -868,17 +919,19 @@ function openStaff() {
   openModal(`<h2>Add staff member</h2><p>Share the email and temporary password with them in person. They can change it under Settings.</p><form id="staffForm"><div class="form-grid">
     <div class="field full"><label>Name</label><input name="name" required minlength="2"></div><div class="field full"><label>Email</label><input name="email" type="email" required></div>
     <div class="field"><label>Role</label><select name="role"><option value="cashier">Cashier — sell & take payments</option><option value="manager">Manager — + stock, expenses, reports</option></select></div>
-    <div class="field"><label>Temporary password</label><input name="password" required minlength="10" value="${uid().slice(0, 12)}"></div></div>
+    <div class="field"><label>Temporary password</label><input name="password" required minlength="10" value="${uid().slice(0, 12)}"></div>
+    <div class="field full"><label>Phone (optional — for password reset codes)</label><input name="phone" placeholder="07XX XXX XXX"></div></div>
     <div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Add staff</button></div></form>`);
   onSubmit('staffForm', async x => { await post('/staff', x); closeModal(); renderPage(); toast('Staff member added'); });
 }
-function editStaff(id, role, active) {
+function editStaff(id, role, active, phone = '') {
   openModal(`<h2>Manage staff</h2><p>Changes sign them out so new permissions apply immediately.</p><form id="editStaffForm"><div class="form-grid">
     <div class="field"><label>Role</label><select name="role"><option value="cashier" ${role === 'cashier' ? 'selected' : ''}>Cashier</option><option value="manager" ${role === 'manager' ? 'selected' : ''}>Manager</option></select></div>
     <div class="field"><label>Status</label><select name="active"><option value="true" ${active ? 'selected' : ''}>Active</option><option value="false" ${active ? '' : 'selected'}>Disabled</option></select></div>
+    <div class="field full"><label>Phone (for password reset codes)</label><input name="phone" value="${esc(phone)}" placeholder="07XX XXX XXX"></div>
     <div class="field full"><label>Reset password (optional)</label><input name="password" minlength="10" placeholder="Leave blank to keep"></div></div>
     <div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Save</button></div></form>`);
-  onSubmit('editStaffForm', async x => { await post(`/staff/${id}`, { role: x.role, active: x.active === 'true', password: x.password || null }, 'PATCH'); closeModal(); renderPage(); toast('Staff updated'); });
+  onSubmit('editStaffForm', async x => { await post(`/staff/${id}`, { role: x.role, active: x.active === 'true', password: x.password || null, phone: x.phone || '' }, 'PATCH'); closeModal(); renderPage(); toast('Staff updated'); });
 }
 
 // ------------------------------------------------------------------ settings
@@ -899,6 +952,7 @@ PAGES.settings = {
         <div class="field"><label>New password</label><input name="new_password" type="password" required minlength="10" autocomplete="new-password"></div>
         <div class="modal-actions"><button class="btn" type="submit">Change password</button></div></form>
         <div style="border-top:1px solid var(--line);margin-top:18px;padding-top:14px"><b style="font-size:12px">Lost a phone?</b><p class="muted" style="font-size:11px">Sign out of Duka on every device, including this one.</p><button class="btn danger" onclick="logoutAll()">Sign out everywhere</button></div>
+        ${isOwner() ? `<div style="border-top:1px solid var(--line);margin-top:18px;padding-top:14px"><b style="font-size:12px">Back up your data</b><p class="muted" style="font-size:11px">Download everything Duka has recorded for your shop — sales, stock, customers, M-Pesa, expenses — as one file. Keep it somewhere safe, e.g. once a week.</p><a class="btn light" href="/api/export/backup.json">Download backup</a></div>` : ''}
       </section></div>`;
   },
   after() {

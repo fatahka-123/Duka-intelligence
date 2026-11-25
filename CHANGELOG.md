@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 — returns, purchase orders and real M-Pesa setup
+
+### Added
+- **Returns & refunds**: return part (or all) of a sale from the receipt. Stock goes back (or is written off for damaged goods),
+  the sale and every report are reduced, money paid above the new total is refunded as a negative payment that also lowers
+  the cashier's expected cash at cash-up; credit sales just owe less. Shown on the receipt and in the audit log
+- **Purchase orders**: build an order by hand or straight from the smart restock plan, send it to the supplier on WhatsApp,
+  then receive the delivery (full or partial, with actual prices) into stock in one tap — weighted cost and price-coach alerts apply
+- **Forgot password**: 6-digit code by SMS/WhatsApp (hashed, 15-minute expiry, 5 tries, signs out other devices); staff phone numbers;
+  `python -m app.reset_password EMAIL` for server admins
+- **Full backup**: owners can download every record as one JSON file from Settings (passwords and API keys excluded)
+- **M-Pesa setup**: step-by-step guide, one-tap Safaricom sandbox test values, *Test connection* button with clear errors,
+  and the till now says plainly when it is in simulator mode (no real phone prompt)
+
+### Fixed
+- Daraja STK timestamp now uses East Africa Time; network failures to Safaricom give a readable message instead of a server error
+
 ## 0.3.0 — "the back office that runs itself"
 
 ### Added

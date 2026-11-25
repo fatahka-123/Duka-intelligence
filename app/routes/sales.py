@@ -4,12 +4,13 @@ from __future__ import annotations
 import secrets
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
 
 from .. import analytics, mpesa
 from ..db import Business, Customer, MpesaTransaction, Payment, Product, Sale, SaleItem, StockMovement, User, db_session, utcnow
@@ -34,6 +35,10 @@ def sale_detail(db: Session, sale: Sale) -> dict:
     out["payments"] = [{"amount": f(p.amount), "method": p.method, "ref": p.external_ref, "by": users.get(p.user_id),
                         "created_at": p.created_at.isoformat()}
                        for p in db.scalars(select(Payment).where(Payment.sale_id == sale.id).order_by(Payment.created_at))]
+    out["returns"] = [{"quantity": m.quantity, "note": m.note, "restocked": m.movement_type == "return", "created_at": m.created_at.isoformat()}
+                      for m in db.scalars(select(StockMovement).where(StockMovement.business_id == sale.business_id,
+                                                                      StockMovement.movement_type.in_(("return", "return_damaged")),
+                                                                      StockMovement.note.like(f"Return {sale.reference}:%")))]
     return out
 
 
@@ -207,3 +212,64 @@ def void_sale(sale_id: int, data: VoidIn, user: User = Depends(require_manager),
     audit(db, user, "sale.void", "sale", sale.id, f"{sale.reference} total {f(sale.total)} refund due {f(sale.amount_paid)}: {data.reason}")
     db.commit()
     return {**sale_detail(db, sale), "refund_due": f(sale.amount_paid)}
+
+
+# ---------------------------------------------------------------- returns & refunds
+class ReturnLineIn(BaseModel):
+    product_id: int
+    quantity: int = Field(gt=0, le=100000)
+
+
+class ReturnIn(BaseModel):
+    items: list[ReturnLineIn] = Field(min_length=1, max_length=200)
+    reason: str = Field(min_length=3, max_length=240)
+    restock: bool = True  # False for damaged/expired goods that can't be sold again
+    refund_method: Literal["cash", "mpesa", "bank", "card", "other"] = "cash"
+
+
+@router.post("/sales/{sale_id}/return")
+def return_items(sale_id: int, data: ReturnIn, user: User = Depends(require_manager), db: Session = Depends(db_session)):
+    """Partial (or full) return. The sale is reduced so every report stays right; money already taken above the
+    new total is refunded as a negative payment, which also lowers the cashier's expected cash at cash-up."""
+    sale = db.scalar(select(Sale).where(Sale.id == sale_id, Sale.business_id == user.business_id).with_for_update())
+    if not sale:
+        raise HTTPException(404, "Sale not found")
+    if sale.status != "completed":
+        raise HTTPException(400, "This sale was voided")
+    items = {i.product_id: i for i in db.scalars(select(SaleItem).where(SaleItem.sale_id == sale.id))}
+    wanted: dict[int, int] = {}
+    for line in data.items:
+        wanted[line.product_id] = wanted.get(line.product_id, 0) + line.quantity
+    for pid, qty in wanted.items():
+        if pid not in items:
+            raise HTTPException(400, "That product is not on this sale")
+        if qty > items[pid].quantity:
+            raise HTTPException(400, f"Only {items[pid].quantity} × {items[pid].product_name} left on this sale to return")
+    value = Decimal("0")
+    names = []
+    for pid in sorted(wanted):
+        item, qty = items[pid], wanted[pid]
+        value += item.unit_price * qty
+        item.quantity -= qty
+        item.line_total = money(item.unit_price * item.quantity)
+        names.append(f"{qty} × {item.product_name}")
+        p = db.scalar(select(Product).where(Product.id == pid, Product.business_id == user.business_id).with_for_update())
+        if p and data.restock:
+            p.stock_qty += qty
+        if p:
+            db.add(StockMovement(business_id=user.business_id, product_id=p.id, user_id=user.id,
+                                 movement_type="return" if data.restock else "return_damaged", quantity=qty if data.restock else 0,
+                                 unit_cost=item.unit_cost, balance_after=p.stock_qty,
+                                 note=f"Return {sale.reference}: {data.reason}"[:240]))
+    sale.subtotal = money(sum((i.line_total for i in items.values()), Decimal("0")))
+    sale.discount = min(sale.discount, sale.subtotal)
+    sale.total = sale.subtotal - sale.discount
+    refund = max(Decimal("0"), sale.amount_paid - sale.total)
+    if refund > 0:
+        sale.amount_paid -= refund
+        db.add(Payment(business_id=user.business_id, sale_id=sale.id, user_id=user.id, amount=-refund,
+                       method=data.refund_method, external_ref="REFUND"))
+    audit(db, user, "sale.return", "sale", sale.id,
+          f"{sale.reference}: {', '.join(names)} worth {f(value):.2f}; refund {f(refund):.2f} by {data.refund_method}; {data.reason}")
+    db.commit()
+    return {**sale_detail(db, sale), "returned_value": f(value), "refund": f(refund)}

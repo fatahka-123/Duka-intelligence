@@ -80,7 +80,10 @@ Locally, SQLite tables are created automatically in `duka.db`.
 
 **M-Pesa** (Settings → M-Pesa, owner only)
 - *Simulator* works immediately with no Safaricom account — use it for demos and staff training.
-- For real money: create an app on the Safaricom Daraja portal, enter consumer key/secret, your Till or Paybill number,
+- **Test first in the sandbox**: on developer.safaricom.co.ke create an app with *M-Pesa Express*, open M-Pesa → Settings,
+  tap **Fill sandbox test values** (shortcode 174379 + Safaricom's public test passkey), paste the app's consumer key/secret,
+  Save, then **Test connection**. Prompts then reach real Safaricom phones as test payments.
+- For real money: complete Safaricom's Go Live for your own Till/Paybill, enter consumer key/secret, your Till or Paybill number,
   the store (head-office) number for tills, and the Lipa na M-Pesa passkey. Set `PUBLIC_BASE_URL`, choose *Sandbox* or *Live*,
   then press **Register C2B URLs**. Secrets are encrypted at rest (`DUKA_ENCRYPTION_KEY`).
 - Callbacks are protected by an unguessable per-shop token, de-duplicated on the M-Pesa receipt, and optionally restricted to
@@ -91,6 +94,10 @@ Without provider keys, messages are generated and visible in the outbox (status 
 `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` (and an approved `WHATSAPP_TEMPLATE` for messages outside WhatsApp's 24-hour window)
 or Africa's Talking `AT_USERNAME` + `AT_API_KEY`. Jobs run every minute in-process; on multiple instances set
 `ENABLE_SCHEDULER=false` and call `POST /internal/cron` with header `X-Cron-Secret`.
+
+**Forgotten passwords** — staff: the owner sets a new one under Staff. Owners: *Forgot password?* on the sign-in page sends a
+6-digit code by SMS/WhatsApp to the owner/business phone (needs a provider, see Automation). Server admins can always run
+`python -m app.reset_password owner@example.com` (Render → Shell).
 
 ## Tests
 
@@ -164,7 +171,7 @@ tests/           pytest suite
 
 This is a much stronger MVP, but not yet a certified accounting, tax or payment platform. Before public commercial use:
 
-- Independent security review; password reset (email/SMS OTP); optional MFA for owners
+- Independent security review; optional MFA for owners (password reset by SMS/WhatsApp code needs a provider configured)
 - Move login throttling to Redis when running more than one instance (it is per-process today)
 - Remove `'unsafe-inline'` from the CSP by migrating inline `onclick` handlers to `addEventListener`
 - **M-Pesa**: the Daraja integration is built and tested against Safaricom's documented payloads and in simulator mode, but has not
@@ -173,10 +180,10 @@ This is a much stronger MVP, but not yet a certified accounting, tax or payment 
 - **WhatsApp**: business-initiated messages need an approved template outside the 24-hour window; get templates approved before go-live
 - **Duka Score** is an indicative business-health measure, not a credit score; any lender partnership needs its own legal review
 - **KRA eTIMS** only after official onboarding and certification; receipts are marked "Not a tax invoice"
-- VAT handling, partial returns/refunds, cash-drawer close-out, proper double-entry ledger
+- VAT handling, proper double-entry ledger
 - Offline mode covers selling; product edits, payments and stock receiving still need a connection
 - Data Protection Act / ODPC review, privacy policy, terms, retention, data export/deletion procedures
-- Automated backups with restore drills, monitoring/alerting, load testing, support process
+- Automated server-side backups with restore drills (owners can download a JSON backup from Settings), monitoring/alerting, load testing, support process
 
 ## Architecture notes
 

@@ -48,6 +48,16 @@ class LoginIn(Clean):
     password: str = Field(max_length=128)
 
 
+class ForgotIn(BaseModel):
+    email: str = Field(max_length=190)
+
+
+class ResetIn(BaseModel):
+    email: str = Field(max_length=190)
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    new_password: str = Field(min_length=10, max_length=128)
+
+
 class PasswordChangeIn(BaseModel):
     current_password: str = Field(max_length=128)
     new_password: str = Field(min_length=10, max_length=128)
@@ -77,12 +87,14 @@ class StaffIn(Clean):
     email: str = Field(min_length=5, max_length=190, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     password: str = Field(min_length=10, max_length=128)
     role: Literal["manager", "cashier"] = "cashier"
+    phone: str = Field(default="", max_length=40)
 
 
 class StaffUpdateIn(BaseModel):
     role: Optional[Literal["manager", "cashier"]] = None
     active: Optional[bool] = None
     password: Optional[str] = Field(default=None, min_length=10, max_length=128)
+    phone: Optional[str] = Field(default=None, max_length=40)
 
 
 # ---------------------------------------------------------------- catalogue
@@ -170,7 +182,7 @@ class AssistantIn(BaseModel):
 
 # ---------------------------------------------------------------- serializers
 def user_out(u: User) -> dict:
-    return {"id": u.id, "name": u.name, "email": u.email, "role": u.role, "active": u.active,
+    return {"id": u.id, "name": u.name, "email": u.email, "role": u.role, "active": u.active, "phone": u.phone or "",
             "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None}
 
 

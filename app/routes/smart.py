@@ -59,6 +59,7 @@ def mpesa_settings_out(b: Business, request: Request) -> dict:
     return {"mode": b.mpesa_mode, "shortcode": b.mpesa_shortcode, "type": b.mpesa_type, "store_number": b.mpesa_store_number,
             "consumer_key": mask(decrypt(b.mpesa_consumer_key)), "consumer_secret": mask(decrypt(b.mpesa_consumer_secret)),
             "passkey": mask(decrypt(b.mpesa_passkey)),
+            "sandbox_defaults": {"shortcode": mpesa.SANDBOX_SHORTCODE, "type": "paybill", "passkey": mpesa.SANDBOX_PASSKEY},
             "callbacks": {"stk": f"{base}/stk", "confirmation": f"{base}/c2b/confirmation", "validation": f"{base}/c2b/validation"} if base else None}
 
 
@@ -82,6 +83,25 @@ def put_mpesa_settings(data: MpesaSettingsIn, request: Request, user: User = Dep
     audit(db, user, "mpesa.settings", "business", b.id, f"mode={data.mode}")
     db.commit()
     return mpesa_settings_out(b, request)
+
+
+@router.post("/api/mpesa/test")
+def test_mpesa(request: Request, user: User = Depends(require_owner), db: Session = Depends(db_session)):
+    """Check the saved Daraja keys against Safaricom without charging anyone."""
+    b = biz(db, user)
+    if b.mpesa_mode == "simulator":
+        return {"ok": True, "message": "Simulator mode — nothing is sent to Safaricom or to real phones", "warnings": [
+            "Switch Mode to 'Daraja sandbox' (test keys) or 'Live' to send real prompts"]}
+    if b.mpesa_mode == "off":
+        raise HTTPException(400, "M-Pesa is off — choose a mode first")
+    try:
+        r = mpesa.Daraja(b, base_url(request)).test_connection()
+    except mpesa.MpesaError as e:
+        raise HTTPException(400, str(e))
+    if not base_url(request).startswith("https://"):
+        r["warnings"].append("Safaricom only sends payment confirmations to an https:// address")
+    db.commit()
+    return r
 
 
 @router.post("/api/mpesa/register-urls")

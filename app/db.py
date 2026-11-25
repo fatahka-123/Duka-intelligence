@@ -92,6 +92,11 @@ class User(Base):
     # Bumped to invalidate every session issued to this user (sign out everywhere, deactivation, password change)
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    phone: Mapped[str] = mapped_column(String(40), default="", server_default="")  # for password-reset codes
+    # Forgot-password: a short-lived 6-digit code (stored hashed) sent by SMS/WhatsApp
+    reset_code_hash: Mapped[str] = mapped_column(String(256), default="", server_default="")
+    reset_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    reset_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -289,3 +294,30 @@ class Notification(Base):
     customer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("customers.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class PurchaseOrder(Base):
+    """An order to a supplier. Receiving it adds the stock (with cost) through the normal stock-receiving path."""
+    __tablename__ = "purchase_orders"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), index=True)
+    supplier_id: Mapped[Optional[int]] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reference: Mapped[str] = mapped_column(String(30))
+    status: Mapped[str] = mapped_column(String(12), default="draft")  # draft | sent | received | cancelled
+    notes: Mapped[str] = mapped_column(String(240), default="", server_default="")
+    total: Mapped[Decimal] = mapped_column(Money, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    received_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class PurchaseOrderItem(Base):
+    __tablename__ = "purchase_order_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("purchase_orders.id"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    product_name: Mapped[str] = mapped_column(String(160))
+    quantity: Mapped[int] = mapped_column(Integer)
+    unit_cost: Mapped[Decimal] = mapped_column(Money, default=0)
+    received_qty: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

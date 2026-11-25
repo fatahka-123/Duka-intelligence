@@ -18,6 +18,7 @@ import re
 import secrets
 from datetime import datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import func, select
@@ -26,6 +27,10 @@ from sqlalchemy.orm import Session
 from .crypto import decrypt
 from .db import Business, Customer, MpesaTransaction, Notification, Payment, Sale, utcnow
 
+NAIROBI = ZoneInfo("Africa/Nairobi")
+# Public test values published by Safaricom for the Daraja sandbox (M-Pesa Express / STK Push)
+SANDBOX_SHORTCODE = "174379"
+SANDBOX_PASSKEY = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"
 BASE_URLS = {"sandbox": "https://sandbox.safaricom.co.ke", "production": "https://api.safaricom.co.ke"}
 # Safaricom-published callback source IPs. Enforced when MPESA_ENFORCE_IPS=true (behind a proxy, make sure X-Forwarded-For is trustworthy).
 SAFARICOM_IPS = {"196.201.214.200", "196.201.214.206", "196.201.213.114", "196.201.214.207", "196.201.214.208",
@@ -76,16 +81,31 @@ class Daraja:
         self.callback_base = public_base_url.rstrip("/") + f"/api/mpesa/callback/{ensure_callback_token(b)}"
 
     def _token(self) -> str:
-        r = httpx.get(f"{self.base}/oauth/v1/generate", params={"grant_type": "client_credentials"},
-                      auth=(self.key, self.secret), timeout=15)
+        try:
+            r = httpx.get(f"{self.base}/oauth/v1/generate", params={"grant_type": "client_credentials"},
+                          auth=(self.key, self.secret), timeout=15)
+        except httpx.HTTPError:
+            raise MpesaError("Could not reach Safaricom — check the server's internet connection and try again")
         if r.status_code != 200:
-            raise MpesaError(f"Daraja authentication failed ({r.status_code})")
+            raise MpesaError(f"Safaricom rejected the consumer key/secret ({r.status_code}). Check they are for the "
+                             f"{'sandbox' if self.b.mpesa_mode == 'sandbox' else 'live'} app on developer.safaricom.co.ke")
         return r.json()["access_token"]
+
+    def test_connection(self) -> dict:
+        """Checks the keys by requesting an access token. Sends nothing to any phone."""
+        self._token()
+        problems = []
+        if not self.passkey:
+            problems.append("No passkey yet — payment prompts (STK Push) won't work until you add it")
+        if self.b.mpesa_mode == "production" and self.b.mpesa_shortcode == SANDBOX_SHORTCODE:
+            problems.append("174379 is the sandbox test shortcode — use your own Till/Paybill for live mode")
+        return {"ok": True, "message": "Connected to Safaricom ✓ — your keys work", "warnings": problems,
+                "callback": self.callback_base}
 
     def stk_push(self, phone: str, amount: int, account_ref: str, description: str) -> dict:
         if not self.passkey:
             raise MpesaError("STK Push needs the Lipa na M-Pesa passkey")
-        ts = datetime.now().strftime("%Y%m%d%H%M%S")
+        ts = datetime.now(NAIROBI).strftime("%Y%m%d%H%M%S")  # Daraja expects East Africa Time
         # For Buy Goods tills, the password/BusinessShortCode use the store (head office) number and PartyB is the till
         business_code = self.b.mpesa_store_number or self.b.mpesa_shortcode
         password = base64.b64encode(f"{business_code}{self.passkey}{ts}".encode()).decode()
@@ -95,8 +115,12 @@ class Daraja:
             "Amount": int(amount), "PartyA": phone, "PartyB": self.b.mpesa_shortcode, "PhoneNumber": phone,
             "CallBackURL": f"{self.callback_base}/stk", "AccountReference": account_ref[:12], "TransactionDesc": description[:13],
         }
-        r = httpx.post(f"{self.base}/mpesa/stkpush/v1/processrequest", json=body,
-                       headers={"Authorization": f"Bearer {self._token()}"}, timeout=20)
+        token = self._token()
+        try:
+            r = httpx.post(f"{self.base}/mpesa/stkpush/v1/processrequest", json=body,
+                           headers={"Authorization": f"Bearer {token}"}, timeout=20)
+        except httpx.HTTPError:
+            raise MpesaError("Safaricom did not respond — try the prompt again")
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code != 200 or str(data.get("ResponseCode")) != "0":
             raise MpesaError(data.get("errorMessage") or data.get("ResponseDescription") or f"STK Push failed ({r.status_code})")

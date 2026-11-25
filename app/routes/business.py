@@ -12,11 +12,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import analytics
-from ..db import Business, Customer, Expense, Payment, Product, Sale, StockMovement, Supplier, User, db_session
+from ..db import Business, Customer, Expense, Payment, Product, Sale, StockMovement, Supplier, User, db_session, utcnow
 from ..schemas import (
     AssistantIn, CustomerIn, ExpenseIn, SupplierIn, customer_out, expense_out, f, money, product_out, sale_out, supplier_out,
 )
-from ..security import audit, current_user, require_manager
+from ..security import audit, current_user, require_manager, require_owner
 
 router = APIRouter(prefix="/api")
 
@@ -224,6 +224,54 @@ def csv_response(filename: str, header: list[str], rows) -> StreamingResponse:
         w.writerow([_safe_cell(v) for v in r])
     return StreamingResponse(iter(["﻿" + buf.getvalue()]), media_type="text/csv; charset=utf-8",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/export/backup.json")
+def export_backup(user: User = Depends(require_owner), db: Session = Depends(db_session)):
+    """Everything this shop has recorded, in one file the owner can keep safe (API keys and passwords excluded)."""
+    import json
+    from datetime import datetime
+    from decimal import Decimal as D
+    from ..db import MpesaTransaction, PurchaseOrder, PurchaseOrderItem, SaleItem, Shift
+
+    bid = user.business_id
+
+    def rows(model, *where):
+        out = []
+        for r in db.scalars(select(model).where(*where)):
+            d = {}
+            for c in model.__table__.columns:
+                if c.name in ("password_hash", "reset_code_hash", "raw") or c.name.startswith("mpesa_consumer") or c.name in ("mpesa_passkey", "mpesa_callback_token"):
+                    continue
+                v = getattr(r, c.name)
+                d[c.name] = v.isoformat() if isinstance(v, datetime) else float(v) if isinstance(v, D) else v
+            out.append(d)
+        return out
+
+    sale_ids = select(Sale.id).where(Sale.business_id == bid)
+    order_ids = select(PurchaseOrder.id).where(PurchaseOrder.business_id == bid)
+    data = {
+        "exported_at": utcnow().isoformat() + "Z", "format": "duka-backup-1",
+        "business": rows(Business, Business.id == bid)[0],
+        "staff": rows(User, User.business_id == bid),
+        "products": rows(Product, Product.business_id == bid),
+        "customers": rows(Customer, Customer.business_id == bid),
+        "suppliers": rows(Supplier, Supplier.business_id == bid),
+        "sales": rows(Sale, Sale.business_id == bid),
+        "sale_items": rows(SaleItem, SaleItem.sale_id.in_(sale_ids)),
+        "payments": rows(Payment, Payment.business_id == bid),
+        "expenses": rows(Expense, Expense.business_id == bid),
+        "stock_movements": rows(StockMovement, StockMovement.business_id == bid),
+        "mpesa_transactions": rows(MpesaTransaction, MpesaTransaction.business_id == bid),
+        "shifts": rows(Shift, Shift.business_id == bid),
+        "purchase_orders": rows(PurchaseOrder, PurchaseOrder.business_id == bid),
+        "purchase_order_items": rows(PurchaseOrderItem, PurchaseOrderItem.order_id.in_(order_ids)),
+    }
+    audit(db, user, "export.backup", "business", bid)
+    db.commit()
+    stamp = utcnow().strftime("%Y%m%d")
+    return StreamingResponse(iter([json.dumps(data, ensure_ascii=False)]), media_type="application/json",
+                             headers={"Content-Disposition": f'attachment; filename="duka-backup-{stamp}.json"'})
 
 
 @router.get("/export/{kind}.csv")

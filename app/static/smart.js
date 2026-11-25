@@ -155,7 +155,9 @@ async function sendPrompt() {
   const btn = $('#stkBtn'); btn.disabled = true;
   try {
     const tx = await post('/mpesa/stk', { phone, amount: total });
-    $('#stkStatus').innerHTML = `<span class="pulse"></span> ${esc(tx.message)}`;
+    $('#stkStatus').innerHTML = state.business.mpesa_mode === 'simulator'
+      ? `<span class="pulse"></span> Simulator: no real prompt goes to the phone — the payment will be faked in a few seconds. <button class="link" onclick="go('mpesa')">Set up real M-Pesa →</button>`
+      : `<span class="pulse"></span> ${esc(tx.message)}`;
     let tries = 0;
     clearInterval(stkPoll);
     stkPoll = setInterval(async () => {
@@ -250,7 +252,18 @@ async function quickSimulator() {
 }
 async function mpesaSettings() {
   let s; try { s = await api('/mpesa/settings'); } catch (e) { return toast(e.message); }
-  openModal(`<h2>M-Pesa settings</h2><p>Get API keys from the Safaricom Daraja portal (developer.safaricom.co.ke). Keys are encrypted at rest.</p>
+  const modeNote = { off: 'M-Pesa is recorded by hand — no prompts.', simulator: '<b>Simulator:</b> payments are pretend. Nothing is sent to Safaricom or to any real phone.',
+    sandbox: '<b>Sandbox:</b> real prompts on real Safaricom phones using Safaricom\'s free test system. Test payments only.', production: '<b>Live:</b> real prompts, real money into your Till/Paybill.' };
+  openModal(`<h2>M-Pesa settings</h2>
+  <div class="quick-card" style="margin-bottom:12px" id="mpModeNote">${modeNote[s.mode] || ''}</div>
+  <details style="margin-bottom:12px;font-size:12px"><summary style="cursor:pointer"><b>How to get your keys (10 minutes)</b></summary>
+    <ol style="padding-left:18px;line-height:1.6;margin:8px 0">
+      <li>Sign up free at <b>developer.safaricom.co.ke</b> and log in.</li>
+      <li>Go to <b>My Apps → Create new app</b>, tick <b>M-Pesa Express</b> (and C2B), save.</li>
+      <li>Open the app and copy the <b>Consumer Key</b> and <b>Consumer Secret</b> into the boxes below.</li>
+      <li>For testing choose <b>Daraja sandbox</b> and tap <b>Fill sandbox test values</b>. Save, then <b>Test connection</b>.</li>
+      <li>To go live, complete Safaricom's <b>Go Live</b> for your own Till/Paybill. You'll get live keys and a passkey by email — choose <b>Live</b> and enter them.</li>
+    </ol></details>
   <form id="mpForm"><div class="form-grid">
     <div class="field"><label>Mode</label><select name="mode">${[['off', 'Off (record manually)'], ['simulator', 'Simulator (demo/training)'], ['sandbox', 'Daraja sandbox'], ['production', 'Live']].map(([v, l]) => `<option value="${v}" ${s.mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="field"><label>Type</label><select name="type"><option value="till" ${s.type === 'till' ? 'selected' : ''}>Buy Goods (Till)</option><option value="paybill" ${s.type === 'paybill' ? 'selected' : ''}>Paybill</option></select></div>
@@ -260,11 +273,30 @@ async function mpesaSettings() {
     <div class="field full"><label>Consumer secret</label><input name="consumer_secret" placeholder="${esc(s.consumer_secret || 'not set')}" autocomplete="off"></div>
     <div class="field full"><label>Lipa na M-Pesa passkey (for prompts)</label><input name="passkey" placeholder="${esc(s.passkey || 'not set')}" autocomplete="off"></div></div>
     ${s.callbacks ? `<p class="footer-note">Callback URLs (registered automatically):<br><code>${esc(s.callbacks.confirmation)}</code></p>` : ''}
-    <div class="modal-actions">${['sandbox', 'production'].includes(s.mode) ? `<button type="button" class="btn light" onclick="registerUrls()">Register C2B URLs</button>` : ''}<button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Save</button></div></form>`);
+    <div id="mpTestResult" style="font-size:12px"></div>
+    <div class="modal-actions" style="flex-wrap:wrap"><button type="button" class="btn light" id="mpSandboxFill">Fill sandbox test values</button>
+      ${s.mode !== 'off' ? `<button type="button" class="btn light" onclick="testMpesa()">Test connection</button>` : ''}
+      ${['sandbox', 'production'].includes(s.mode) ? `<button type="button" class="btn light" onclick="registerUrls()">Register C2B URLs</button>` : ''}<button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Save</button></div></form>`);
+  const form = $('#mpForm');
+  form.mode.onchange = () => { $('#mpModeNote').innerHTML = modeNote[form.mode.value] || ''; $('#mpTestResult').innerHTML = ''; };
+  $('#mpSandboxFill').onclick = () => {
+    const d = s.sandbox_defaults; form.mode.value = 'sandbox'; form.type.value = d.type; form.shortcode.value = d.shortcode; form.store_number.value = '';
+    form.passkey.value = d.passkey; form.mode.onchange();
+    toast('Sandbox test values filled — now paste your Consumer Key and Secret, then Save');
+  };
   onSubmit('mpForm', async x => {
     for (const k of ['consumer_key', 'consumer_secret', 'passkey']) if (!x[k]) delete x[k];
-    await post('/mpesa/settings', x, 'PUT'); const me = await api('/auth/me'); state.business = me.business; closeModal(); appShell(); renderPage(); toast('M-Pesa settings saved');
+    await post('/mpesa/settings', x, 'PUT'); const me = await api('/auth/me'); state.business = me.business;
+    toast('M-Pesa settings saved'); appShell(); renderPage(); await mpesaSettings();
+    if (x.mode !== 'off') testMpesa();
   });
+}
+async function testMpesa() {
+  const el = $('#mpTestResult'); if (el) el.innerHTML = '<span class="muted">Checking with Safaricom…</span>';
+  try {
+    const r = await post('/mpesa/test', {});
+    if (el) el.innerHTML = `<div class="quick-card ok">✓ ${esc(r.message)}${(r.warnings || []).map(w => `<div class="muted" style="margin-top:4px">⚠ ${esc(w)}</div>`).join('')}</div>`;
+  } catch (e) { if (el) el.innerHTML = `<div class="quick-card warn">✕ ${esc(e.message)}</div>`; else toast(e.message); }
 }
 async function registerUrls() { try { await post('/mpesa/register-urls', {}); toast('URLs registered with Safaricom'); } catch (e) { toast(e.message); } }
 
@@ -378,3 +410,90 @@ PAGES.products.render = function () { return _prodRender.call(this) + (isManager
 PAGES.products.after = async function () { await _prodAfter.call(this); if (isManager()) renderBenchmarks(); };
 const _posAfter = PAGES.pos.after;
 PAGES.pos.after = function () { _posAfter.call(this); loadShift(); startLiveMpesa(); };
+
+// ------------------------------------------------------------------ purchase orders (Suppliers page)
+const PO_BADGE = { draft: ['warn', 'Draft'], sent: ['', 'Sent'], received: ['', '✓ Received'], cancelled: ['red', 'Cancelled'] };
+async function renderPurchaseOrders() {
+  const el = $('#poList'); if (!el) return;
+  try {
+    const rows = await api('/purchase-orders');
+    el.innerHTML = `<section class="panel"><div class="panel-head"><div><h3>Purchase orders</h3><p>Order from suppliers, send on WhatsApp, then receive the delivery into stock in one tap</p></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn light small" onclick="newPO(true)">From restock plan</button><button class="btn small" onclick="newPO(false)">＋ New order</button></div></div>
+      <div class="table-wrap"><table><thead><tr><th>ORDER</th><th>SUPPLIER</th><th>ITEMS</th><th>TOTAL</th><th>STATUS</th><th></th></tr></thead><tbody>
+      ${rows.map(o => `<tr class="clickable" onclick="showPO(${o.id})"><td><b>${esc(o.reference)}</b><div class="muted">${fmtDate(o.created_at)}</div></td><td>${esc(o.supplier || '—')}</td>
+        <td>${o.items.length}</td><td><b>${money(o.total)}</b></td><td><span class="badge ${PO_BADGE[o.status][0]}">${PO_BADGE[o.status][1]}</span></td><td style="text-align:right"><button class="btn light small">Open</button></td></tr>`).join('')
+        || '<tr><td colspan="6" class="empty">No orders yet. Start one from the restock plan — Duka already knows what is running out.</td></tr>'}</tbody></table></div></section>`;
+  } catch (e) { el.innerHTML = ''; }
+}
+async function newPO(fromPlan) {
+  let lines = [];
+  if (fromPlan) {
+    try { lines = await api('/purchase-orders/suggest'); } catch (e) { return toast(e.message); }
+    if (!lines.length) toast('Nothing is running low right now — add items by hand');
+  }
+  if (!lines.length) lines = [{ product_id: state.products[0]?.id, quantity: 1, unit_cost: state.products[0]?.cost_price || 0 }];
+  window._poLines = lines;
+  drawPOForm();
+}
+function drawPOForm(keep) {
+  const lines = window._poLines;
+  const sup = keep?.supplier_id ?? '', notes = keep?.notes ?? '';
+  const opts = id => state.products.map(p => `<option value="${p.id}" ${p.id === id ? 'selected' : ''}>${esc(p.name)} (${p.stock_qty} in stock)</option>`).join('');
+  openModal(`<h2>New purchase order</h2><p>Check quantities and buying prices, then save. You can send it to the supplier on WhatsApp next.</p>
+    <form id="poForm"><div class="field"><label>Supplier</label><select name="supplier_id"><option value="">— choose —</option>${state.suppliers.map(s => `<option value="${s.id}" ${String(s.id) === String(sup) ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
+    <div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>QTY</th><th>UNIT COST</th><th></th></tr></thead><tbody>
+    ${lines.map((l, i) => `<tr><td><select data-i="${i}" data-k="product_id">${opts(l.product_id)}</select></td><td><input data-i="${i}" data-k="quantity" type="number" min="1" value="${l.quantity}" style="width:80px"></td>
+      <td><input data-i="${i}" data-k="unit_cost" type="number" min="0" step="0.01" value="${l.unit_cost}" style="width:100px"></td><td><button type="button" class="btn light small" onclick="poRemove(${i})" aria-label="Remove">✕</button></td></tr>`).join('')}</tbody></table></div>
+    <button type="button" class="btn light small" style="margin-top:8px" onclick="poAdd()">＋ Add line</button>
+    <div class="field" style="margin-top:10px"><label>Notes for supplier</label><input name="notes" maxlength="200" value="${esc(notes)}" placeholder="e.g. Deliver by Friday"></div>
+    <div class="kv"><span>Estimated total</span><b id="poTotal"></b></div>
+    <div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Save order</button></div></form>`);
+  const sync = () => {
+    $$('#poForm [data-i]').forEach(inp => { const l = lines[+inp.dataset.i]; l[inp.dataset.k] = Number(inp.value); });
+    $('#poTotal').textContent = money(lines.reduce((a, l) => a + l.quantity * l.unit_cost, 0));
+  };
+  $$('#poForm [data-i]').forEach(inp => inp.oninput = inp.onchange = () => {
+    if (inp.dataset.k === 'product_id') { const p = state.products.find(x => x.id === Number(inp.value)); lines[+inp.dataset.i].unit_cost = p?.cost_price || 0; drawPOForm(poKeep()); return; }
+    sync();
+  });
+  sync();
+  onSubmit('poForm', async x => {
+    sync();
+    const items = lines.filter(l => l.product_id && l.quantity > 0).map(l => ({ product_id: l.product_id, quantity: Math.floor(l.quantity), unit_cost: l.unit_cost }));
+    if (!items.length) return toast('Add at least one product');
+    const po = await post('/purchase-orders', { supplier_id: x.supplier_id ? Number(x.supplier_id) : null, items, notes: x.notes });
+    toast(`Order ${po.reference} saved`); renderPage(); showPO(po.id);
+  });
+}
+const poKeep = () => ({ supplier_id: $('#poForm [name=supplier_id]')?.value, notes: $('#poForm [name=notes]')?.value });
+function poAdd() { const k = poKeep(); const p = state.products[0]; window._poLines.push({ product_id: p?.id, quantity: 1, unit_cost: p?.cost_price || 0 }); drawPOForm(k); }
+function poRemove(i) { const k = poKeep(); window._poLines.splice(i, 1); if (!window._poLines.length) poAdd(); else drawPOForm(k); }
+async function showPO(id) {
+  let o; try { o = (await api('/purchase-orders')).find(x => x.id === id); } catch (e) { return toast(e.message); }
+  if (!o) return toast('Order not found');
+  const open = ['draft', 'sent'].includes(o.status);
+  openModal(`<h2>${esc(o.reference)} <span class="badge ${PO_BADGE[o.status][0]}" style="vertical-align:middle">${PO_BADGE[o.status][1]}</span></h2>
+    <p>${esc(o.supplier || 'No supplier')} · created ${fmtDate(o.created_at)}${o.received_at ? ' · received ' + fmtDate(o.received_at) : ''}</p>
+    <form id="poRecv"><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>ORDERED</th><th>UNIT COST</th>${open ? '<th>ARRIVED</th>' : '<th>RECEIVED</th>'}</tr></thead><tbody>
+    ${o.items.map(i => `<tr><td><b>${esc(i.name)}</b></td><td>${i.quantity}</td><td>${open ? `<input name="c_${i.id}" type="number" min="0" step="0.01" value="${i.unit_cost}" style="width:95px">` : money(i.unit_cost)}</td>
+      <td>${open ? `<input name="q_${i.id}" type="number" min="0" value="${i.quantity}" style="width:80px">` : i.received_qty}</td></tr>`).join('')}</tbody></table></div>
+    ${o.notes ? `<p class="muted">${esc(o.notes)}</p>` : ''}<div class="kv"><span>Total</span><b>${money(o.total)}</b></div>
+    <div class="modal-actions" style="flex-wrap:wrap">${open ? `<button type="button" class="btn light" onclick="sendPO(${o.id})">Send on WhatsApp</button><button type="button" class="btn danger" onclick="cancelPO(${o.id})">Cancel order</button>` : ''}
+      <button type="button" class="btn light" onclick="closeModal()">Close</button>${open ? '<button class="btn" type="submit">Receive into stock</button>' : ''}</div></form>`);
+  if (open) onSubmit('poRecv', async x => {
+    const items = o.items.map(i => ({ item_id: i.id, quantity: Math.floor(Number(x['q_' + i.id] || 0)), unit_cost: Number(x['c_' + i.id]) }));
+    await post(`/purchase-orders/${o.id}/receive`, { items });
+    await loadData(); closeModal(); renderPage(); toast('Delivery received — stock updated');
+  });
+}
+async function sendPO(id) {
+  try {
+    const m = await api(`/purchase-orders/${id}/message`);
+    window.open(waLink(m.phone, m.text), '_blank', 'noopener');
+    await post(`/purchase-orders/${id}/sent`, {}); renderPage(); showPO(id);
+  } catch (e) { toast(e.message); }
+}
+async function cancelPO(id) { try { await post(`/purchase-orders/${id}/cancel`, {}); closeModal(); renderPage(); toast('Order cancelled'); } catch (e) { toast(e.message); } }
+const _supRender = PAGES.suppliers.render, _supAfter = PAGES.suppliers.after;
+PAGES.suppliers.render = function () { return _supRender.call(this) + '<div id="poList"></div>'; };
+PAGES.suppliers.after = async function () { if (_supAfter) await _supAfter.call(this); renderPurchaseOrders(); };

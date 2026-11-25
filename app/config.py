@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 DEV_SECRET_PREFIX = "dev-only-change-this"
 
